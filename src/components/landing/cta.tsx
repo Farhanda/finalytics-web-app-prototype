@@ -9,7 +9,7 @@ export function Cta() {
         <div className="relative overflow-hidden rounded-3xl bg-primary px-8 py-16 text-center shadow-xl shadow-primary/20 sm:px-16">
           <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_top_right,rgba(255,255,255,0.5),transparent_55%)]" />
           <div className="relative mx-auto max-w-2xl">
-            <h2 className="font-heading text-3xl font-extrabold tracking-tight text-primary-foreground sm:text-4xl">
+            <h2 className="text-balance font-heading text-3xl font-extrabold tracking-tight text-primary-foreground sm:text-4xl">
               Ready to automate your projects?
             </h2>
             <p className="mt-4 text-lg text-primary-foreground/85">

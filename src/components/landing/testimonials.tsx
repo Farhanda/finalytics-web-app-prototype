@@ -37,12 +37,12 @@ export function Testimonials() {
           <span className="text-sm font-semibold uppercase tracking-wide text-primary">
             Loved by teams
           </span>
-          <h2 className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="mt-3 text-balance font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
             Built for the way modern teams ship
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-3">
+        <div className="mt-14 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {testimonials.map((t) => (
             <figure
               key={t.name}

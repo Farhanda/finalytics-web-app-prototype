@@ -36,7 +36,7 @@ export function Faq() {
           <span className="text-sm font-semibold uppercase tracking-wide text-primary">
             FAQ
           </span>
-          <h2 className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="mt-3 text-balance font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
             Frequently asked questions
           </h2>
         </div>

@@ -30,7 +30,8 @@ export function TaskTableMockup() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="relative">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
             <tr className="bg-muted/50 text-xs font-semibold text-muted-foreground">
@@ -129,6 +130,8 @@ export function TaskTableMockup() {
             ))}
           </tbody>
         </table>
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-card to-transparent lg:hidden" />
       </div>
     </div>
   );

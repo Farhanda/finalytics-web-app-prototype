@@ -32,7 +32,7 @@ export function Workflow() {
           <span className="text-sm font-semibold uppercase tracking-wide text-primary">
             How it works
           </span>
-          <h2 className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="mt-3 text-balance font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
             From kickoff to launch in three steps
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
@@ -41,7 +41,7 @@ export function Workflow() {
           </p>
         </div>
 
-        <div className="relative mt-16 grid gap-8 md:grid-cols-3">
+        <div className="relative mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
           {steps.map((step) => (
             <div
               key={step.step}

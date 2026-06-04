@@ -91,7 +91,8 @@ export function ProgressDashboardMockup() {
             Task Management
           </h4>
         </div>
-        <div className="overflow-x-auto">
+        <div className="relative">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead>
               <tr className="border-y border-border/70 text-xs font-semibold text-muted-foreground">
@@ -147,6 +148,8 @@ export function ProgressDashboardMockup() {
               ))}
             </tbody>
           </table>
+          </div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-card to-transparent lg:hidden" />
         </div>
       </div>
     </div>

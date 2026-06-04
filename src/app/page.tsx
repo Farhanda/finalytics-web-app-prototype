@@ -14,7 +14,7 @@ export default function Home() {
   return (
     <>
       <Navbar />
-      <main className="flex-1">
+      <main className="flex-1 overflow-x-clip">
         <Hero />
         <LogoCloud />
         <FeaturesShowcase />

@@ -23,8 +23,8 @@ export function Footer() {
   return (
     <footer className="border-t border-border/60 bg-muted/30">
       <div className="container-padded py-16">
-        <div className="grid gap-10 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
-          <div className="max-w-xs">
+        <div className="grid grid-cols-2 gap-10 sm:grid-cols-4 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
+          <div className="col-span-2 max-w-xs sm:col-span-4 lg:col-span-1">
             <Logo />
             <p className="mt-4 text-sm text-muted-foreground">
               The project automation platform by Finalytics. Assign, track, and ship —
