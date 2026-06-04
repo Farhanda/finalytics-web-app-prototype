@@ -13,7 +13,11 @@ const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/tasks": "Task Assignment",
   "/dashboard/projects": "Projects",
+  "/dashboard/calendar": "Calendar",
   "/dashboard/team": "Team",
+  "/dashboard/roles": "Roles",
+  "/dashboard/settings": "Settings",
+  "/dashboard/help": "Help & support",
 };
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {

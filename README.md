@@ -59,9 +59,9 @@ The `/dashboard` area is a fully **functional** application — every control do
 something, and the whole thing is driven by one shared state store.
 
 **Single source of truth.** [DashboardProvider](src/components/dashboard/provider.tsx)
-holds tasks, projects, team, and an activity log in React Context, **persisted to
-`localStorage`** so your changes survive a refresh. Every widget reads from it and every
-action writes to it, so the UI stays in sync end-to-end.
+holds tasks, projects, team, an activity log, and the user **profile** in React Context,
+**persisted to `localStorage`** so your changes survive a refresh. Every widget reads from
+it and every action writes to it, so the UI stays in sync end-to-end.
 
 **What actually works:**
 
@@ -72,15 +72,30 @@ action writes to it, so the UI stays in sync end-to-end.
   `Completed`, updating every derived number live.
 - **Derived KPIs** — Team Members, Active Projects, Open Tasks, and Completion % are all
   computed from state (no hard-coded figures).
+- **Edit your profile** — Settings updates your name/email; the greeting, sidebar, and
+  future activity entries reflect it instantly.
 - **Search** — the topbar search routes to `/dashboard/tasks?q=…`; the board reads the
   query and filters. Team cards' "View tasks" deep-link the same way.
 - **Notifications** — the bell opens a dropdown fed by the live activity log.
 - **Sidebar** — the Tasks badge shows the real open-task count; the user menu has
   "Back to home" and "Reset demo data".
 
-**Pages:** `/dashboard` (overview), `/dashboard/tasks` (full board), `/dashboard/projects`
-(progress cards), `/dashboard/team` (members with per-person task counts derived from the
-task list). The nav only lists routes that exist — no dead links.
+**Pages** (everything in the nav is a real, connected page):
+
+| Route | What it does |
+| --- | --- |
+| `/dashboard` | Overview — KPIs, weekly chart, activity feed, projects, task board |
+| `/dashboard/tasks` | Full task board (search via `?q=`, filter tabs, CRUD) |
+| `/dashboard/projects` | Project progress cards + status summary |
+| `/dashboard/calendar` | Tasks placed on their due dates; click a task to edit it |
+| `/dashboard/team` | Members + per-person task counts; filter via `?role=` |
+| `/dashboard/roles` | Roles derived from the team, with per-role workload → Team |
+| `/dashboard/settings` | Edit profile (live across the app), workspace info, reset |
+| `/dashboard/help` | Resources, FAQ, and a contact form (knows your email) |
+
+**How they connect:** Roles → "View members" deep-links to Team filtered by role →
+"View tasks" deep-links to the task board searched by name. Creating/editing a task
+updates the board, calendar, KPIs, team counts, role workload, and activity feed at once.
 
 Seed data lives in [src/lib/dashboard-data.ts](src/lib/dashboard-data.ts); task data is
 shared with the landing-page mockups via [src/lib/data.ts](src/lib/data.ts).
@@ -98,7 +113,11 @@ src/
 │     ├─ page.tsx            # overview
 │     ├─ tasks/page.tsx      # task board (reads ?q= search)
 │     ├─ projects/page.tsx   # project progress cards
-│     └─ team/page.tsx       # team members + per-person task counts
+│     ├─ calendar/page.tsx   # tasks on a month grid
+│     ├─ team/page.tsx       # members + per-person tasks (reads ?role=)
+│     ├─ roles/page.tsx      # roles derived from team
+│     ├─ settings/page.tsx   # edit profile + workspace + reset
+│     └─ help/page.tsx       # resources, FAQ, contact form
 ├─ components/
 │  ├─ brand/logo.tsx      # autom8 wordmark
 │  ├─ landing/            # one file per landing section

@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { DashboardGreeting } from "@/components/dashboard/greeting";
 import { StatCards } from "@/components/dashboard/stat-cards";
 import { WeeklyChart } from "@/components/dashboard/weekly-chart";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
@@ -14,14 +15,7 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Greeting */}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">
-            Good morning, Farhan 👋
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Here&apos;s what&apos;s happening across your workspace today.
-          </p>
-        </div>
+        <DashboardGreeting />
         <Link
           href="/dashboard/tasks"
           className={cn(buttonVariants({ variant: "outline" }), "font-semibold")}

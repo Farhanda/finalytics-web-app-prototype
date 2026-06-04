@@ -13,7 +13,7 @@ import { useDashboard } from "@/components/dashboard/provider";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { tasks, currentUser, resetDemo } = useDashboard();
+  const { tasks, profile, resetDemo } = useDashboard();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const openTasks = tasks.filter((t) => !t.done).length;
@@ -115,14 +115,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted"
         >
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            {currentUser.initials}
+            {profile.initials}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-foreground">
-              {currentUser.name}
+              {profile.name}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
-              aixelindonesia@gmail.com
+              {profile.email}
             </span>
           </span>
           <ChevronsUpDown className="size-4 text-muted-foreground" />

@@ -3,9 +3,13 @@
 // here are the initial seed only.
 
 import {
+  CalendarDays,
   FolderKanban,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
+  Settings,
+  Shield,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -21,7 +25,6 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-// Only routes that actually exist and work are listed.
 export const navGroups: NavGroup[] = [
   {
     title: "Main",
@@ -29,11 +32,22 @@ export const navGroups: NavGroup[] = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Tasks", href: "/dashboard/tasks", icon: ListChecks },
       { label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
+      { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
     ],
   },
   {
     title: "Workspace",
-    items: [{ label: "Team", href: "/dashboard/team", icon: Users }],
+    items: [
+      { label: "Team", href: "/dashboard/team", icon: Users },
+      { label: "Roles", href: "/dashboard/roles", icon: Shield },
+    ],
+  },
+  {
+    title: "System",
+    items: [
+      { label: "Settings", href: "/dashboard/settings", icon: Settings },
+      { label: "Help & support", href: "/dashboard/help", icon: LifeBuoy },
+    ],
   },
 ];
 

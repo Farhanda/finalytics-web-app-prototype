@@ -52,11 +52,26 @@ export type TaskInput = {
   status: TaskStatus;
 };
 
-const CURRENT_USER = {
+export type Profile = {
+  name: string;
+  email: string;
+  initials: string;
+  tint: string;
+};
+
+const DEFAULT_PROFILE: Profile = {
   name: "Farhan A.",
+  email: "aixelindonesia@gmail.com",
   initials: "FA",
   tint: "bg-primary/15 text-primary",
 };
+
+function initialsFrom(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 type DialogState = { open: boolean; mode: "create" | "edit"; task: Task | null };
 
@@ -65,7 +80,8 @@ type Ctx = {
   projects: DashboardProject[];
   team: TeamMember[];
   activities: Activity[];
-  currentUser: typeof CURRENT_USER;
+  profile: Profile;
+  updateProfile: (partial: Partial<Pick<Profile, "name" | "email">>) => void;
   addTask: (input: TaskInput) => void;
   updateTask: (id: string, input: TaskInput) => void;
   deleteTask: (id: string) => void;
@@ -90,6 +106,7 @@ function uid(prefix: string) {
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>(seedTasks);
   const [activities, setActivities] = useState<Activity[]>(seedActivities);
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
   const projects = seedProjects;
   const team = seedTeam;
 
@@ -101,6 +118,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(raw);
         if (parsed.tasks) setTasks(parsed.tasks);
         if (parsed.activities) setActivities(parsed.activities);
+        if (parsed.profile) setProfile({ ...DEFAULT_PROFILE, ...parsed.profile });
       }
     } catch {
       // ignore corrupt storage
@@ -112,12 +130,23 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ tasks, activities })
+        JSON.stringify({ tasks, activities, profile })
       );
     } catch {
       // ignore quota errors
     }
-  }, [tasks, activities]);
+  }, [tasks, activities, profile]);
+
+  const updateProfile = useCallback(
+    (partial: Partial<Pick<Profile, "name" | "email">>) => {
+      setProfile((prev) => {
+        const next = { ...prev, ...partial };
+        if (partial.name) next.initials = initialsFrom(partial.name);
+        return next;
+      });
+    },
+    []
+  );
 
   const logActivity = useCallback(
     (entry: Omit<Activity, "id" | "time"> & { time?: string }) => {
@@ -152,14 +181,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       };
       setTasks((prev) => [task, ...prev]);
       logActivity({
-        actor: CURRENT_USER.name,
-        initials: CURRENT_USER.initials,
-        tint: CURRENT_USER.tint,
+        actor: profile.name,
+        initials: profile.initials,
+        tint: profile.tint,
         action: "created task",
         target: task.name,
       });
     },
-    [team, logActivity]
+    [team, profile, logActivity]
   );
 
   const updateTask = useCallback(
@@ -185,14 +214,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         )
       );
       logActivity({
-        actor: CURRENT_USER.name,
-        initials: CURRENT_USER.initials,
-        tint: CURRENT_USER.tint,
+        actor: profile.name,
+        initials: profile.initials,
+        tint: profile.tint,
         action: "updated task",
         target: input.name.trim(),
       });
     },
-    [team, logActivity]
+    [team, profile, logActivity]
   );
 
   const deleteTask = useCallback(
@@ -201,15 +230,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setTasks((prev) => prev.filter((t) => t.id !== id));
       if (task) {
         logActivity({
-          actor: CURRENT_USER.name,
-          initials: CURRENT_USER.initials,
-          tint: CURRENT_USER.tint,
+          actor: profile.name,
+          initials: profile.initials,
+          tint: profile.tint,
           action: "deleted task",
           target: task.name,
         });
       }
     },
-    [tasks, logActivity]
+    [tasks, profile, logActivity]
   );
 
   const toggleTask = useCallback(
@@ -261,6 +290,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(() => {
     setTasks(seedTasks);
     setActivities(seedActivities);
+    setProfile(DEFAULT_PROFILE);
   }, []);
 
   const value = useMemo<Ctx>(
@@ -269,7 +299,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       projects,
       team,
       activities,
-      currentUser: CURRENT_USER,
+      profile,
+      updateProfile,
       addTask,
       updateTask,
       deleteTask,
@@ -285,6 +316,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       projects,
       team,
       activities,
+      profile,
+      updateProfile,
       addTask,
       updateTask,
       deleteTask,
