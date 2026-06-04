@@ -13,15 +13,22 @@ progress tracking, and client-ready project status.
 
 ## Getting started
 
+This project uses **pnpm** (pinned via `packageManager` in `package.json`). If you don't
+have it, enable it with `corepack enable`.
+
 ```bash
-npm install
-npm run dev      # http://localhost:3000
+pnpm install
+pnpm dev         # http://localhost:3000
 ```
 
 ```bash
-npm run build    # production build
-npm run start    # serve the production build
+pnpm build       # production build
+pnpm start       # serve the production build
+pnpm lint        # eslint
 ```
+
+> First install runs native build scripts for `sharp` and `unrs-resolver`, pre-approved in
+> [pnpm-workspace.yaml](pnpm-workspace.yaml) (`allowBuilds`).
 
 ## Page structure
 
