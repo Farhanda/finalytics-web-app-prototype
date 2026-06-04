@@ -1,14 +1,11 @@
-// Data that powers the autom8 application dashboard.
-// Kept separate from the landing-page mockup data in ./data.ts.
+// Seed data + types for the autom8 application dashboard.
+// Live state (tasks, activity) is managed by the DashboardProvider; the arrays
+// here are the initial seed only.
 
 import {
-  CalendarDays,
-  FileText,
+  FolderKanban,
   LayoutDashboard,
-  LifeBuoy,
   ListChecks,
-  Settings,
-  Shield,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -17,7 +14,6 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  badge?: string;
 };
 
 export type NavGroup = {
@@ -25,77 +21,23 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+// Only routes that actually exist and work are listed.
 export const navGroups: NavGroup[] = [
   {
     title: "Main",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Tasks", href: "/dashboard/tasks", icon: ListChecks, badge: "6" },
-      { label: "Projects", href: "/dashboard/projects", icon: FileText },
-      { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
+      { label: "Tasks", href: "/dashboard/tasks", icon: ListChecks },
+      { label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
     ],
   },
   {
     title: "Workspace",
-    items: [
-      { label: "Team", href: "/dashboard/team", icon: Users },
-      { label: "Roles", href: "/dashboard/roles", icon: Shield },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      { label: "Settings", href: "/dashboard/settings", icon: Settings },
-      { label: "Help & support", href: "/dashboard/help", icon: LifeBuoy },
-    ],
+    items: [{ label: "Team", href: "/dashboard/team", icon: Users }],
   },
 ];
 
-export type Kpi = {
-  label: string;
-  value: string;
-  delta: string;
-  trend: "up" | "down";
-  hint: string;
-  icon: "users" | "box" | "roles" | "tasks";
-};
-
-export const kpis: Kpi[] = [
-  {
-    label: "Team Members",
-    value: "24",
-    delta: "8",
-    trend: "up",
-    hint: "vs. last month",
-    icon: "users",
-  },
-  {
-    label: "Total Projects",
-    value: "12",
-    delta: "2",
-    trend: "down",
-    hint: "vs. last month",
-    icon: "box",
-  },
-  {
-    label: "Total Roles",
-    value: "8",
-    delta: "1",
-    trend: "up",
-    hint: "vs. last month",
-    icon: "roles",
-  },
-  {
-    label: "Tasks Completed",
-    value: "86%",
-    delta: "12",
-    trend: "up",
-    hint: "this quarter",
-    icon: "tasks",
-  },
-];
-
-// Tasks completed per day for the weekly activity chart.
+// Tasks completed per day — illustrative weekly history for the chart.
 export const weeklyActivity: { day: string; value: number }[] = [
   { day: "Mon", value: 12 },
   { day: "Tue", value: 18 },
@@ -109,6 +51,7 @@ export const weeklyActivity: { day: string; value: number }[] = [
 export type ProjectStatus = "On track" | "At risk" | "Delayed";
 
 export type DashboardProject = {
+  id: string;
   name: string;
   client: string;
   progress: number;
@@ -117,8 +60,9 @@ export type DashboardProject = {
   tint: string;
 };
 
-export const dashboardProjects: DashboardProject[] = [
+export const seedProjects: DashboardProject[] = [
   {
+    id: "p1",
     name: "Landing Page Finalytics",
     client: "Finalytics",
     progress: 72,
@@ -127,6 +71,7 @@ export const dashboardProjects: DashboardProject[] = [
     tint: "bg-primary",
   },
   {
+    id: "p2",
     name: "Mobile App Redesign",
     client: "Northwind",
     progress: 45,
@@ -135,6 +80,7 @@ export const dashboardProjects: DashboardProject[] = [
     tint: "bg-amber-500",
   },
   {
+    id: "p3",
     name: "Analytics Dashboard v2",
     client: "Lumina",
     progress: 90,
@@ -143,6 +89,7 @@ export const dashboardProjects: DashboardProject[] = [
     tint: "bg-emerald-500",
   },
   {
+    id: "p4",
     name: "Billing Integration",
     client: "Vertex",
     progress: 28,
@@ -152,7 +99,28 @@ export const dashboardProjects: DashboardProject[] = [
   },
 ];
 
+export type TeamMember = {
+  id: string;
+  name: string;
+  initials: string;
+  tint: string;
+  role: string;
+  email: string;
+};
+
+export const seedTeam: TeamMember[] = [
+  { id: "u1", name: "Sean Kemper", initials: "SK", tint: "bg-sky-100 text-sky-700", role: "Backend Engineer", email: "sean.kemper@autom8.app" },
+  { id: "u2", name: "Victoria Sullivan", initials: "VS", tint: "bg-rose-100 text-rose-700", role: "QA Engineer", email: "victoria.s@autom8.app" },
+  { id: "u3", name: "Liam Martinez", initials: "LM", tint: "bg-amber-100 text-amber-700", role: "Frontend Engineer", email: "liam.m@autom8.app" },
+  { id: "u4", name: "Emma Johnson", initials: "EJ", tint: "bg-violet-100 text-violet-700", role: "Product Manager", email: "emma.j@autom8.app" },
+  { id: "u5", name: "Olivia Thompson", initials: "OT", tint: "bg-emerald-100 text-emerald-700", role: "Data Analyst", email: "olivia.t@autom8.app" },
+  { id: "u6", name: "Noah Garcia", initials: "NG", tint: "bg-fuchsia-100 text-fuchsia-700", role: "Backend Engineer", email: "noah.g@autom8.app" },
+  { id: "u7", name: "Ava Wilson", initials: "AW", tint: "bg-teal-100 text-teal-700", role: "UI/UX Designer", email: "ava.w@autom8.app" },
+  { id: "u8", name: "Ethan Brown", initials: "EB", tint: "bg-indigo-100 text-indigo-700", role: "DevOps Engineer", email: "ethan.b@autom8.app" },
+];
+
 export type Activity = {
+  id: string;
   actor: string;
   initials: string;
   tint: string;
@@ -161,47 +129,11 @@ export type Activity = {
   time: string;
 };
 
-export const activities: Activity[] = [
-  {
-    actor: "Sean Kemper",
-    initials: "SK",
-    tint: "bg-sky-100 text-sky-700",
-    action: "completed",
-    target: "Review system logs",
-    time: "12m ago",
-  },
-  {
-    actor: "Emma Johnson",
-    initials: "EJ",
-    tint: "bg-violet-100 text-violet-700",
-    action: "commented on",
-    target: "Prioritize bugs by severity",
-    time: "48m ago",
-  },
-  {
-    actor: "Liam Martinez",
-    initials: "LM",
-    tint: "bg-amber-100 text-amber-700",
-    action: "moved to Front End",
-    target: "Landing Page Finalytics",
-    time: "2h ago",
-  },
-  {
-    actor: "Olivia Thompson",
-    initials: "OT",
-    tint: "bg-emerald-100 text-emerald-700",
-    action: "was assigned",
-    target: "Investigate root cause",
-    time: "5h ago",
-  },
-  {
-    actor: "Noah Garcia",
-    initials: "NG",
-    tint: "bg-fuchsia-100 text-fuchsia-700",
-    action: "uploaded a file to",
-    target: "Develop bug fixes",
-    time: "Yesterday",
-  },
+export const seedActivities: Activity[] = [
+  { id: "a1", actor: "Sean Kemper", initials: "SK", tint: "bg-sky-100 text-sky-700", action: "completed", target: "Review system logs", time: "12m ago" },
+  { id: "a2", actor: "Emma Johnson", initials: "EJ", tint: "bg-violet-100 text-violet-700", action: "commented on", target: "Prioritize bugs by severity", time: "48m ago" },
+  { id: "a3", actor: "Liam Martinez", initials: "LM", tint: "bg-amber-100 text-amber-700", action: "moved to Front End", target: "Landing Page Finalytics", time: "2h ago" },
+  { id: "a4", actor: "Olivia Thompson", initials: "OT", tint: "bg-emerald-100 text-emerald-700", action: "was assigned", target: "Investigate root cause", time: "5h ago" },
 ];
 
 export const statusStyles: Record<ProjectStatus, string> = {

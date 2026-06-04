@@ -4,10 +4,13 @@ import { useState } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { DashboardProvider } from "@/components/dashboard/provider";
+import { TaskDialog } from "@/components/dashboard/task-dialog";
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+function ShellInner({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -53,6 +56,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Topbar onMenuClick={() => setMobileOpen(true)} />
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
+
+      <TaskDialog />
+      <Toaster position="top-right" richColors />
     </div>
+  );
+}
+
+export function DashboardShell({ children }: { children: React.ReactNode }) {
+  return (
+    <DashboardProvider>
+      <ShellInner>{children}</ShellInner>
+    </DashboardProvider>
   );
 }

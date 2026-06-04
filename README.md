@@ -48,20 +48,35 @@ app at `/dashboard`.
 
 ## App dashboard
 
-The `/dashboard` route is a working application shell, not just a mockup:
+The `/dashboard` area is a fully **functional** application — every control does
+something, and the whole thing is driven by one shared state store.
 
-- **Shell** — collapsible sidebar (grouped nav + user card) and a topbar with search,
-  notifications, and breadcrumb title. Responsive: the sidebar becomes a drawer on mobile.
-  See [src/components/dashboard/shell.tsx](src/components/dashboard/shell.tsx).
-- **`/dashboard`** — overview: KPI cards, a weekly "tasks completed" bar chart, a recent
-  activity feed, an active-projects progress list, and the task board.
-- **`/dashboard/tasks`** — full Task Assignment board: **interactive** search, status
-  filter tabs with live counts, and tasks you can check off (client state).
+**Single source of truth.** [DashboardProvider](src/components/dashboard/provider.tsx)
+holds tasks, projects, team, and an activity log in React Context, **persisted to
+`localStorage`** so your changes survive a refresh. Every widget reads from it and every
+action writes to it, so the UI stays in sync end-to-end.
 
-Dashboard data lives in
-[src/lib/dashboard-data.ts](src/lib/dashboard-data.ts); the task data is shared with the
-landing-page mockups via [src/lib/data.ts](src/lib/data.ts). The other sidebar links
-(Projects, Calendar, Team, Roles, Settings) are placeholders for future pages.
+**What actually works:**
+
+- **Create / edit / delete tasks** — a shared dialog ([task-dialog.tsx](src/components/dashboard/task-dialog.tsx))
+  opened from the topbar or any board. Deletes ask for confirmation. Each action shows a
+  toast and appends to the activity log.
+- **Complete a task** — the checkbox toggles done **and** flips status to/from
+  `Completed`, updating every derived number live.
+- **Derived KPIs** — Team Members, Active Projects, Open Tasks, and Completion % are all
+  computed from state (no hard-coded figures).
+- **Search** — the topbar search routes to `/dashboard/tasks?q=…`; the board reads the
+  query and filters. Team cards' "View tasks" deep-link the same way.
+- **Notifications** — the bell opens a dropdown fed by the live activity log.
+- **Sidebar** — the Tasks badge shows the real open-task count; the user menu has
+  "Back to home" and "Reset demo data".
+
+**Pages:** `/dashboard` (overview), `/dashboard/tasks` (full board), `/dashboard/projects`
+(progress cards), `/dashboard/team` (members with per-person task counts derived from the
+task list). The nav only lists routes that exist — no dead links.
+
+Seed data lives in [src/lib/dashboard-data.ts](src/lib/dashboard-data.ts); task data is
+shared with the landing-page mockups via [src/lib/data.ts](src/lib/data.ts).
 
 ## Project layout
 
@@ -72,18 +87,21 @@ src/
 │  ├─ globals.css         # theme tokens (orange brand) + utilities
 │  ├─ page.tsx            # landing page — assembles all sections
 │  └─ dashboard/
-│     ├─ layout.tsx       # app shell (sidebar + topbar)
-│     ├─ page.tsx         # dashboard overview
-│     └─ tasks/page.tsx   # task assignment board
+│     ├─ layout.tsx          # app shell (sidebar + topbar)
+│     ├─ page.tsx            # overview
+│     ├─ tasks/page.tsx      # task board (reads ?q= search)
+│     ├─ projects/page.tsx   # project progress cards
+│     └─ team/page.tsx       # team members + per-person task counts
 ├─ components/
 │  ├─ brand/logo.tsx      # autom8 wordmark
 │  ├─ landing/            # one file per landing section
-│  ├─ dashboard/          # sidebar, topbar, cards, chart, task board
+│  ├─ dashboard/          # provider (state), shell, sidebar, topbar,
+│  │                      #   task-board, task-dialog, cards, chart, feed
 │  ├─ mockups/            # the 3 product UI mockups (landing)
 │  └─ ui/                 # shadcn/ui primitives
 └─ lib/
-   ├─ data.ts             # sample data shared by mockups + task board
-   ├─ dashboard-data.ts   # nav, KPIs, projects, activity, weekly chart
+   ├─ data.ts             # task seed, shared by mockups + dashboard
+   ├─ dashboard-data.ts   # nav, projects, team, activity seed
    └─ utils.ts            # cn() helper
 ```
 

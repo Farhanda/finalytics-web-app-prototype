@@ -1,15 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsUpDown } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronsUpDown, Home, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
 import { navGroups } from "@/lib/dashboard-data";
+import { useDashboard } from "@/components/dashboard/provider";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { tasks, currentUser, resetDemo } = useDashboard();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const openTasks = tasks.filter((t) => !t.done).length;
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -30,6 +37,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 const active =
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                const badge =
+                  item.href === "/dashboard/tasks" && openTasks > 0
+                    ? String(openTasks)
+                    : null;
                 return (
                   <li key={item.href}>
                     <Link
@@ -44,7 +55,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     >
                       <item.icon className="size-[18px]" />
                       <span className="flex-1">{item.label}</span>
-                      {item.badge && (
+                      {badge && (
                         <span
                           className={cn(
                             "grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-xs font-semibold",
@@ -53,7 +64,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                               : "bg-accent text-primary"
                           )}
                         >
-                          {item.badge}
+                          {badge}
                         </span>
                       )}
                     </Link>
@@ -65,14 +76,50 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-border/60 p-3">
-        <button className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted">
+      <div className="relative border-t border-border/60 p-3">
+        {menuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute bottom-16 left-3 right-3 z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+              <Link
+                href="/"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onNavigate?.();
+                }}
+                className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
+              >
+                <Home className="size-4 text-muted-foreground" />
+                Back to home page
+              </Link>
+              <button
+                onClick={() => {
+                  resetDemo();
+                  setMenuOpen(false);
+                  toast.success("Demo data reset");
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted"
+              >
+                <RotateCcw className="size-4 text-muted-foreground" />
+                Reset demo data
+              </button>
+            </div>
+          </>
+        )}
+
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted"
+        >
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            FA
+            {currentUser.initials}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-foreground">
-              Farhan A.
+              {currentUser.name}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               aixelindonesia@gmail.com

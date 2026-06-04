@@ -1,9 +1,14 @@
-import { MoreHorizontal } from "lucide-react";
+"use client";
+
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import { dashboardProjects, statusStyles } from "@/lib/dashboard-data";
+import { statusStyles } from "@/lib/dashboard-data";
+import { useDashboard } from "@/components/dashboard/provider";
 
 export function ProjectStatusList() {
+  const { projects } = useDashboard();
+
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/60 px-6 py-5">
@@ -15,15 +20,18 @@ export function ProjectStatusList() {
             Real-time progress across your workspace
           </p>
         </div>
-        <button className="text-sm font-semibold text-primary hover:underline">
+        <Link
+          href="/dashboard/projects"
+          className="text-sm font-semibold text-primary hover:underline"
+        >
           View all
-        </button>
+        </Link>
       </div>
 
       <ul className="divide-y divide-border/60">
-        {dashboardProjects.map((project) => (
+        {projects.map((project) => (
           <li
-            key={project.name}
+            key={project.id}
             className="flex flex-wrap items-center gap-4 px-6 py-4"
           >
             <div className="min-w-0 flex-1">
@@ -56,13 +64,6 @@ export function ProjectStatusList() {
                 {project.progress}%
               </span>
             </div>
-
-            <button
-              className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label="More options"
-            >
-              <MoreHorizontal className="size-4" />
-            </button>
           </li>
         ))}
       </ul>
