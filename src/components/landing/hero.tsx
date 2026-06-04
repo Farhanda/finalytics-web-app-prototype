@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { ArrowRight, CheckCircle2, Play, Star } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ProjectStatusMockup } from "@/components/mockups/project-status-mockup";
 
 const trustPoints = ["No credit card required", "14-day free trial", "Cancel anytime"];
@@ -36,10 +38,16 @@ export function Hero() {
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button size="lg" className="h-12 px-7 text-base font-semibold shadow-md shadow-primary/30">
+            <Link
+              href="/dashboard"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-12 px-7 text-base font-semibold shadow-md shadow-primary/30"
+              )}
+            >
               Start for free
               <ArrowRight className="size-4" />
-            </Button>
+            </Link>
             <Button
               size="lg"
               variant="outline"

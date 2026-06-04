@@ -43,6 +43,26 @@ connected story from first task to final delivery:
 10. **CTA** — final conversion banner
 11. **Footer**
 
+All landing-page CTAs ("Get started", "Start for free", "Sign in") link through to the
+app at `/dashboard`.
+
+## App dashboard
+
+The `/dashboard` route is a working application shell, not just a mockup:
+
+- **Shell** — collapsible sidebar (grouped nav + user card) and a topbar with search,
+  notifications, and breadcrumb title. Responsive: the sidebar becomes a drawer on mobile.
+  See [src/components/dashboard/shell.tsx](src/components/dashboard/shell.tsx).
+- **`/dashboard`** — overview: KPI cards, a weekly "tasks completed" bar chart, a recent
+  activity feed, an active-projects progress list, and the task board.
+- **`/dashboard/tasks`** — full Task Assignment board: **interactive** search, status
+  filter tabs with live counts, and tasks you can check off (client state).
+
+Dashboard data lives in
+[src/lib/dashboard-data.ts](src/lib/dashboard-data.ts); the task data is shared with the
+landing-page mockups via [src/lib/data.ts](src/lib/data.ts). The other sidebar links
+(Projects, Calendar, Team, Roles, Settings) are placeholders for future pages.
+
 ## Project layout
 
 ```
@@ -50,14 +70,20 @@ src/
 ├─ app/
 │  ├─ layout.tsx          # fonts + metadata
 │  ├─ globals.css         # theme tokens (orange brand) + utilities
-│  └─ page.tsx            # assembles all sections
+│  ├─ page.tsx            # landing page — assembles all sections
+│  └─ dashboard/
+│     ├─ layout.tsx       # app shell (sidebar + topbar)
+│     ├─ page.tsx         # dashboard overview
+│     └─ tasks/page.tsx   # task assignment board
 ├─ components/
 │  ├─ brand/logo.tsx      # autom8 wordmark
-│  ├─ landing/            # one file per page section
-│  ├─ mockups/            # the 3 product UI mockups
+│  ├─ landing/            # one file per landing section
+│  ├─ dashboard/          # sidebar, topbar, cards, chart, task board
+│  ├─ mockups/            # the 3 product UI mockups (landing)
 │  └─ ui/                 # shadcn/ui primitives
 └─ lib/
-   ├─ data.ts             # sample data shared by the mockups
+   ├─ data.ts             # sample data shared by mockups + task board
+   ├─ dashboard-data.ts   # nav, KPIs, projects, activity, weekly chart
    └─ utils.ts            # cn() helper
 ```
 

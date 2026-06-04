@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -36,12 +38,21 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost" size="sm" className="font-medium">
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "font-medium")}
+          >
             Sign in
-          </Button>
-          <Button size="sm" className="font-semibold shadow-sm shadow-primary/30">
+          </Link>
+          <Link
+            href="/dashboard"
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "font-semibold shadow-sm shadow-primary/30"
+            )}
+          >
             Get started
-          </Button>
+          </Link>
         </div>
 
         <button
@@ -67,10 +78,20 @@ export function Navbar() {
               </a>
             ))}
             <div className="mt-2 flex flex-col gap-2">
-              <Button variant="outline" className="w-full">
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              >
                 Sign in
-              </Button>
-              <Button className="w-full font-semibold">Get started</Button>
+              </Link>
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className={cn(buttonVariants(), "w-full font-semibold")}
+              >
+                Get started
+              </Link>
             </div>
           </nav>
         </div>
