@@ -6,14 +6,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import {
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 
-import { tasks as seedTasks, type Priority, type Task, type TaskStatus } from "@/lib/data";
+import { type Priority, type Task, type TaskStatus } from "@/lib/data";
 import {
   projectTints,
-  seedActivities,
-  seedProjects,
   seedTeam,
   type AccessRole,
   type Activity,
@@ -31,6 +36,22 @@ import {
   visibleProjects as selectVisibleProjects,
   visibleTasks as selectVisibleTasks,
 } from "@/lib/access";
+import { firebaseReady } from "@/lib/firebase";
+import {
+  activitiesCol,
+  createProject,
+  createTask,
+  deleteTaskDoc,
+  fromSnap,
+  logActivityDoc,
+  projectsCol,
+  seedFirestore,
+  tasksCol,
+  updateProjectDoc,
+  updateTaskDoc,
+  updateUserDoc,
+  usersCol,
+} from "@/lib/firestore";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -85,6 +106,7 @@ export type Profile = {
 
 // Default identity is the workspace Admin (first seed user).
 const DEFAULT_USER_ID = "u0";
+const USER_STORAGE_KEY = "autom8:currentUser:v1";
 
 function initialsFrom(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -101,13 +123,17 @@ type ProjectDialogState = {
 };
 
 type Ctx = {
-  // Raw state (full workspace — useful for Admin aggregates).
+  // Live data from Firestore.
   tasks: Task[];
   projects: DashboardProject[];
   team: TeamMember[];
   activities: Activity[];
 
-  // Current identity / role.
+  // Connection / load status.
+  loading: boolean;
+  configured: boolean;
+
+  // Current identity / role (client-only switcher).
   currentUser: TeamMember;
   role: AccessRole;
   profile: Profile;
@@ -132,7 +158,7 @@ type Ctx = {
   canEditTask: (task: Task) => boolean;
   canToggleTask: (task: Task) => boolean;
 
-  // Mutations.
+  // Mutations (write to Firestore; UI updates via snapshots).
   updateProfile: (partial: Partial<Pick<Profile, "name" | "email">>) => void;
   addProject: (input: ProjectInput) => void;
   updateProject: (id: string, partial: Partial<ProjectInput>) => void;
@@ -158,54 +184,94 @@ type Ctx = {
 
 const DashboardContext = createContext<Ctx | null>(null);
 
-const STORAGE_KEY = "autom8:dashboard:v2";
-
-let idCounter = 0;
-function uid(prefix: string) {
-  idCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}-${idCounter}`;
-}
-
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(seedTasks);
-  const [projects, setProjects] = useState<DashboardProject[]>(seedProjects);
-  const [team, setTeam] = useState<TeamMember[]>(seedTeam);
-  const [activities, setActivities] = useState<Activity[]>(seedActivities);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<DashboardProject[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>(DEFAULT_USER_ID);
 
-  // Hydrate from localStorage after mount (keeps SSR === first client render).
+  const seededRef = useRef(false);
+
+  // Identity lives in localStorage — it's a client-only demo concern, not data.
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.tasks) setTasks(parsed.tasks);
-        if (parsed.projects) setProjects(parsed.projects);
-        if (parsed.team) setTeam(parsed.team);
-        if (parsed.activities) setActivities(parsed.activities);
-        if (parsed.currentUserId) setCurrentUserId(parsed.currentUserId);
-      }
+      const saved = window.localStorage.getItem(USER_STORAGE_KEY);
+      if (saved) setCurrentUserId(saved);
     } catch {
-      // ignore corrupt storage
+      // ignore
     }
   }, []);
-
-  // Persist on change.
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ tasks, projects, team, activities, currentUserId })
-      );
+      window.localStorage.setItem(USER_STORAGE_KEY, currentUserId);
     } catch {
-      // ignore quota errors
+      // ignore
     }
-  }, [tasks, projects, team, activities, currentUserId]);
+  }, [currentUserId]);
 
-  const currentUser = useMemo(
-    () => team.find((m) => m.id === currentUserId) ?? team[0],
-    [team, currentUserId]
-  );
+  // Subscribe to Firestore. Four live listeners keep the UI in sync across
+  // tabs/devices; the users listener also seeds the DB on first (empty) run.
+  useEffect(() => {
+    if (!firebaseReady) {
+      setLoading(false);
+      return;
+    }
+
+    const onError = (label: string) => (err: unknown) =>
+      console.error(`[firestore] ${label} listener error`, err);
+
+    const unsubUsers = onSnapshot(
+      usersCol,
+      (snap) => {
+        if (snap.empty && !seededRef.current) {
+          seededRef.current = true;
+          seedFirestore().catch(onError("seed"));
+          return; // keep loading until the seeded data arrives
+        }
+        setTeam(fromSnap<TeamMember>(snap));
+        setLoading(false);
+      },
+      onError("users")
+    );
+
+    const unsubProjects = onSnapshot(
+      projectsCol,
+      (snap) => setProjects(fromSnap<DashboardProject>(snap)),
+      onError("projects")
+    );
+
+    const unsubTasks = onSnapshot(
+      tasksCol,
+      (snap) => setTasks(fromSnap<Task>(snap)),
+      onError("tasks")
+    );
+
+    const unsubActivities = onSnapshot(
+      query(activitiesCol, orderBy("createdAt", "desc"), limit(20)),
+      (snap) => setActivities(fromSnap<Activity>(snap)),
+      onError("activities")
+    );
+
+    return () => {
+      unsubUsers();
+      unsubProjects();
+      unsubTasks();
+      unsubActivities();
+    };
+  }, []);
+
+  // A valid TeamMember is always returned, even before live data arrives, so the
+  // context type stays non-null during the brief loading window.
+  const currentUser = useMemo<TeamMember>(() => {
+    return (
+      team.find((m) => m.id === currentUserId) ??
+      team[0] ??
+      seedTeam.find((m) => m.id === currentUserId) ??
+      seedTeam[0]
+    );
+  }, [team, currentUserId]);
   const role = currentUser.accessRole;
 
   const profile = useMemo<Profile>(
@@ -288,12 +354,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logActivity = useCallback(
-    (entry: Omit<Activity, "id" | "time"> & { time?: string }) => {
-      setActivities((prev) =>
-        [
-          { id: uid("a"), time: entry.time ?? "Just now", ...entry },
-          ...prev,
-        ].slice(0, 12)
+    (entry: Omit<Activity, "id" | "createdAt" | "time"> & { time?: string }) => {
+      logActivityDoc(entry).catch(
+        (err) => console.error("[firestore] logActivity failed", err)
       );
     },
     []
@@ -301,16 +364,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = useCallback(
     (partial: Partial<Pick<Profile, "name" | "email">>) => {
-      setTeam((prev) =>
-        prev.map((m) =>
-          m.id === currentUserId
-            ? {
-                ...m,
-                ...partial,
-                initials: partial.name ? initialsFrom(partial.name) : m.initials,
-              }
-            : m
-        )
+      const next: Partial<TeamMember> = { ...partial };
+      if (partial.name) next.initials = initialsFrom(partial.name);
+      updateUserDoc(currentUserId, next).catch(
+        (err) => console.error("[firestore] updateProfile failed", err)
       );
     },
     [currentUserId]
@@ -318,8 +375,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const addProject = useCallback(
     (input: ProjectInput) => {
-      const project: DashboardProject = {
-        id: uid("p"),
+      const data: Omit<DashboardProject, "id"> = {
         name: input.name.trim(),
         client: input.client.trim(),
         progress: input.progress,
@@ -329,49 +385,48 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         pmId: input.pmId,
         memberIds: input.memberIds,
       };
-      setProjects((prev) => [project, ...prev]);
-      logActivity({
-        actor: currentUser.name,
-        initials: currentUser.initials,
-        tint: currentUser.tint,
-        action: "created project",
-        target: project.name,
-      });
+      createProject(data)
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "created project",
+            target: data.name,
+          })
+        )
+        .catch(
+          (err) => console.error("[firestore] addProject failed", err)
+        );
     },
     [projects.length, currentUser, logActivity]
   );
 
   const updateProject = useCallback(
     (id: string, partial: Partial<ProjectInput>) => {
-      setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== id) return p;
-          return {
-            ...p,
-            ...(partial.name !== undefined && { name: partial.name.trim() }),
-            ...(partial.client !== undefined && { client: partial.client.trim() }),
-            ...(partial.dueDate !== undefined && {
-              due: dueFromInput(partial.dueDate),
-            }),
-            ...(partial.pmId !== undefined && { pmId: partial.pmId }),
-            ...(partial.memberIds !== undefined && {
-              memberIds: partial.memberIds,
-            }),
-            ...(partial.status !== undefined && { status: partial.status }),
-            ...(partial.progress !== undefined && { progress: partial.progress }),
-          };
-        })
-      );
+      const mapped: Partial<DashboardProject> = {
+        ...(partial.name !== undefined && { name: partial.name.trim() }),
+        ...(partial.client !== undefined && { client: partial.client.trim() }),
+        ...(partial.dueDate !== undefined && { due: dueFromInput(partial.dueDate) }),
+        ...(partial.pmId !== undefined && { pmId: partial.pmId }),
+        ...(partial.memberIds !== undefined && { memberIds: partial.memberIds }),
+        ...(partial.status !== undefined && { status: partial.status }),
+        ...(partial.progress !== undefined && { progress: partial.progress }),
+      };
       const project = projects.find((p) => p.id === id);
-      if (project) {
-        logActivity({
-          actor: currentUser.name,
-          initials: currentUser.initials,
-          tint: currentUser.tint,
-          action: "updated project",
-          target: partial.name?.trim() ?? project.name,
-        });
-      }
+      updateProjectDoc(id, mapped)
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "updated project",
+            target: partial.name?.trim() ?? project?.name ?? "a project",
+          })
+        )
+        .catch(
+          (err) => console.error("[firestore] updateProject failed", err)
+        );
     },
     [projects, currentUser, logActivity]
   );
@@ -380,8 +435,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     (input: TaskInput) => {
       const member = team.find((m) => m.id === input.assigneeId) ?? team[0];
       const now = new Date();
-      const task: Task = {
-        id: uid("t"),
+      const data: Omit<Task, "id"> = {
         name: input.name.trim(),
         createdDate: formatDate(now),
         createdTime: formatTime(now),
@@ -399,14 +453,19 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         priority: input.priority,
         done: input.status === "Completed",
       };
-      setTasks((prev) => [task, ...prev]);
-      logActivity({
-        actor: currentUser.name,
-        initials: currentUser.initials,
-        tint: currentUser.tint,
-        action: "created task",
-        target: task.name,
-      });
+      createTask(data)
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "created task",
+            target: data.name,
+          })
+        )
+        .catch(
+          (err) => console.error("[firestore] addTask failed", err)
+        );
     },
     [team, currentUser, currentUserId, role, logActivity]
   );
@@ -414,34 +473,33 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const updateTask = useCallback(
     (id: string, input: TaskInput) => {
       const member = team.find((m) => m.id === input.assigneeId) ?? team[0];
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === id
-            ? {
-                ...t,
-                name: input.name.trim(),
-                dueDate: dueFromInput(input.dueDate),
-                projectId: input.projectId,
-                assigneeId: member.id,
-                assignee: {
-                  name: member.name,
-                  initials: member.initials,
-                  tint: member.tint,
-                },
-                status: input.status,
-                priority: input.priority,
-                done: input.status === "Completed",
-              }
-            : t
+      const mapped: Partial<Task> = {
+        name: input.name.trim(),
+        dueDate: dueFromInput(input.dueDate),
+        projectId: input.projectId,
+        assigneeId: member.id,
+        assignee: {
+          name: member.name,
+          initials: member.initials,
+          tint: member.tint,
+        },
+        status: input.status,
+        priority: input.priority,
+        done: input.status === "Completed",
+      };
+      updateTaskDoc(id, mapped)
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "updated task",
+            target: input.name.trim(),
+          })
         )
-      );
-      logActivity({
-        actor: currentUser.name,
-        initials: currentUser.initials,
-        tint: currentUser.tint,
-        action: "updated task",
-        target: input.name.trim(),
-      });
+        .catch(
+          (err) => console.error("[firestore] updateTask failed", err)
+        );
     },
     [team, currentUser, logActivity]
   );
@@ -449,43 +507,45 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const deleteTask = useCallback(
     (id: string) => {
       const task = tasks.find((t) => t.id === id);
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-      if (task) {
-        logActivity({
-          actor: currentUser.name,
-          initials: currentUser.initials,
-          tint: currentUser.tint,
-          action: "deleted task",
-          target: task.name,
-        });
-      }
+      deleteTaskDoc(id)
+        .then(() => {
+          if (task)
+            logActivity({
+              actor: currentUser.name,
+              initials: currentUser.initials,
+              tint: currentUser.tint,
+              action: "deleted task",
+              target: task.name,
+            });
+        })
+        .catch(
+          (err) => console.error("[firestore] deleteTask failed", err)
+        );
     },
     [tasks, currentUser, logActivity]
   );
 
   const toggleTask = useCallback(
     (id: string) => {
-      setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          const done = !t.done;
-          return {
-            ...t,
-            done,
-            status: done ? "Completed" : "In-progress",
-          };
-        })
-      );
       const task = tasks.find((t) => t.id === id);
-      if (task) {
-        logActivity({
-          actor: task.assignee.name,
-          initials: task.assignee.initials,
-          tint: task.assignee.tint,
-          action: task.done ? "reopened" : "completed",
-          target: task.name,
-        });
-      }
+      if (!task) return;
+      const done = !task.done;
+      updateTaskDoc(id, {
+        done,
+        status: done ? "Completed" : "In-progress",
+      })
+        .then(() =>
+          logActivity({
+            actor: task.assignee.name,
+            initials: task.assignee.initials,
+            tint: task.assignee.tint,
+            action: done ? "completed" : "reopened",
+            target: task.name,
+          })
+        )
+        .catch(
+          (err) => console.error("[firestore] toggleTask failed", err)
+        );
     },
     [tasks, logActivity]
   );
@@ -530,10 +590,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const resetDemo = useCallback(() => {
-    setTasks(seedTasks);
-    setProjects(seedProjects);
-    setTeam(seedTeam);
-    setActivities(seedActivities);
+    seedFirestore().catch(
+      (err) => console.error("[firestore] resetDemo failed", err)
+    );
     setCurrentUserId(DEFAULT_USER_ID);
   }, []);
 
@@ -543,6 +602,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       projects,
       team,
       activities,
+      loading,
+      configured: firebaseReady,
       currentUser,
       role,
       profile,
@@ -582,6 +643,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       projects,
       team,
       activities,
+      loading,
       currentUser,
       role,
       profile,

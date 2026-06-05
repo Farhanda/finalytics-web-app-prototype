@@ -30,6 +30,26 @@ pnpm lint        # eslint
 > First install runs native build scripts for `sharp` and `unrs-resolver`, pre-approved in
 > [pnpm-workspace.yaml](pnpm-workspace.yaml) (`allowBuilds`).
 
+### Firebase (Firestore backend)
+
+The `/dashboard` app stores its data in **Firebase Firestore** via the Web (client) SDK.
+You need a Firebase project to run it:
+
+1. **Create a project** at <https://console.firebase.google.com> → *Add project*.
+2. **Firestore Database** → *Create database* → start in **Test mode** → pick a region
+   (e.g. `asia-southeast2` for Jakarta).
+3. **Project settings → Your apps → Web (`</>`)** → register an app → copy the config.
+4. `cp .env.example .env.local` and paste the values (the `NEXT_PUBLIC_FIREBASE_*` keys).
+5. `pnpm dev` — on first load the app **auto-seeds** Firestore with the demo data.
+
+The `NEXT_PUBLIC_FIREBASE_*` keys are inlined into the client bundle and are safe to
+expose — access is governed by [firestore.rules](firestore.rules), not key secrecy.
+
+> ⚠️ **Security:** there is no login yet, so the role-switcher is the identity and the
+> Admin/PM/Member rules are enforced **client-side** ([src/lib/access.ts](src/lib/access.ts)).
+> Firestore runs in **Test mode** (open) for the prototype. Lock it down with the
+> auth-aware rules drafted in [firestore.rules](firestore.rules) once real sign-in is added.
+
 ## Page structure
 
 The page is composed top-to-bottom in [src/app/page.tsx](src/app/page.tsx), telling one
@@ -59,9 +79,11 @@ The `/dashboard` area is a fully **functional** application — every control do
 something, and the whole thing is driven by one shared state store.
 
 **Single source of truth.** [DashboardProvider](src/components/dashboard/provider.tsx)
-holds tasks, projects, team, an activity log, and the **current user** in React Context,
-**persisted to `localStorage`** so your changes survive a refresh. Every widget reads from
-it and every action writes to it, so the UI stays in sync end-to-end.
+subscribes to **Firestore** (tasks, projects, team, activity log) with live `onSnapshot`
+listeners and exposes them through React Context — so changes are cloud-persisted and sync
+across tabs/devices in real time. Writes go straight to Firestore via
+[src/lib/firestore.ts](src/lib/firestore.ts) and the UI updates from the snapshot. The only
+thing kept in `localStorage` is which identity the **role-switcher** is viewing as.
 
 **Role-based access.** There are three access roles, enforced by pure selectors in
 [src/lib/access.ts](src/lib/access.ts):

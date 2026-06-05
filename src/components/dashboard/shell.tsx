@@ -1,15 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Loader2, TriangleAlert, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
-import { DashboardProvider } from "@/components/dashboard/provider";
+import { DashboardProvider, useDashboard } from "@/components/dashboard/provider";
 import { TaskDialog } from "@/components/dashboard/task-dialog";
 import { ProjectDialog } from "@/components/dashboard/project-dialog";
+
+// Shown until the first Firestore snapshot resolves (and while it seeds on first run).
+function LoadingState() {
+  return (
+    <div className="grid place-items-center py-32 text-muted-foreground">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="size-7 animate-spin text-primary" />
+        <p className="text-sm">Loading your workspace…</p>
+      </div>
+    </div>
+  );
+}
+
+// Shown when the NEXT_PUBLIC_FIREBASE_* env vars are missing.
+function ConfigNotice() {
+  return (
+    <div className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50/60 p-8 text-center">
+      <span className="mx-auto grid size-12 place-items-center rounded-xl bg-amber-100 text-amber-600">
+        <TriangleAlert className="size-6" />
+      </span>
+      <h2 className="mt-4 font-heading text-xl font-bold text-foreground">
+        Firebase isn&apos;t configured yet
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Copy{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">.env.example</code>{" "}
+        to{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">.env.local</code>,
+        paste your Firebase web config, then restart the dev server.
+      </p>
+    </div>
+  );
+}
+
+function MainContent({ children }: { children: React.ReactNode }) {
+  const { loading, configured } = useDashboard();
+  if (!configured) return <ConfigNotice />;
+  if (loading) return <LoadingState />;
+  return <>{children}</>;
+}
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -55,7 +95,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       {/* Content */}
       <div className="lg:pl-64">
         <Topbar onMenuClick={() => setMobileOpen(true)} />
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="px-4 py-6 sm:px-6 lg:px-8">
+          <MainContent>{children}</MainContent>
+        </main>
       </div>
 
       <TaskDialog />

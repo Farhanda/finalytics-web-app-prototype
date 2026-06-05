@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// ===========================================================================
+// DEVELOPMENT RULES (current phase: no Firebase Auth)
+// ===========================================================================
+// Without Auth there is no `request.auth`, so rules cannot tell who the user is
+// and therefore cannot enforce Admin/PM/Member access. Role visibility is
+// enforced CLIENT-SIDE in src/lib/access.ts for now.
+//
+// These open rules match the Firestore "Test mode" you selected in the console.
+// They are fine for a local prototype but MUST be locked down before any real
+// or public deployment — anyone with the project config could read/write.
+//
+// To deploy these: Firestore console → Rules → paste → Publish
+// (or `firebase deploy --only firestore:rules` with the Firebase CLI).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true; // DEV ONLY — replace once Auth is added.
+    }
+  }
+}
+
+// ===========================================================================
+// PRODUCTION RULES (later phase: with Firebase Auth) — REFERENCE, commented out.
+// ===========================================================================
+// When you enable Email/Password + Google sign-in and store the signed-in user's
+// access role on their user doc (`users/{uid}.accessRole`), swap the block above
+// for rules that mirror src/lib/access.ts. Sketch:
+//
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//     function signedIn()  { return request.auth != null; }
+//     function me()        { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+//     function isAdmin()   { return signedIn() && me().accessRole == 'Admin'; }
+//     function isPM()      { return signedIn() && me().accessRole == 'PM'; }
+//
+//     // Users: everyone signed in can read the directory; you edit only yourself
+//     // (admins can edit anyone).
+//     match /users/{uid} {
+//       allow read:  if signedIn();
+//       allow write: if isAdmin() || request.auth.uid == uid;
+//     }
+//
+//     // Projects: admins manage all; a PM manages projects they own; members
+//     // (and the PM) may read projects they're on.
+//     match /projects/{pid} {
+//       allow read:   if isAdmin()
+//                     || (signedIn() && resource.data.pmId == request.auth.uid)
+//                     || (signedIn() && request.auth.uid in resource.data.memberIds);
+//       allow create: if isAdmin();
+//       allow update, delete:
+//                     if isAdmin()
+//                     || (isPM() && resource.data.pmId == request.auth.uid);
+//     }
+//
+//     // Tasks: scoped to the parent project's PM/members; members may create
+//     // their own (member-generated) tasks and edit what they created.
+//     match /tasks/{tid} {
+//       function project() { return get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data; }
+//       allow read:   if isAdmin()
+//                     || (signedIn() && project().pmId == request.auth.uid)
+//                     || (signedIn() && request.auth.uid in project().memberIds);
+//       allow create: if signedIn();
+//       allow update, delete:
+//                     if isAdmin()
+//                     || (signedIn() && project().pmId == request.auth.uid)
+//                     || (signedIn() && resource.data.createdById == request.auth.uid);
+//     }
+//
+//     match /activities/{aid} {
+//       allow read:   if signedIn();
+//       allow create: if signedIn();
+//       allow update, delete: if isAdmin();
+//     }
+//   }
+// }

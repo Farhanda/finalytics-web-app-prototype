@@ -179,6 +179,8 @@ export type Activity = {
   action: string;
   target: string;
   time: string;
+  // Millisecond sort key so Firestore can return the feed newest-first.
+  createdAt?: number;
 };
 
 export const seedActivities: Activity[] = [
