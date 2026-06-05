@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,27 +36,42 @@ export function TaskBoard({
 }: {
   initialQuery?: string;
 }) {
-  const { tasks, toggleTask, deleteTask, openEdit, openCreate } = useDashboard();
+  const {
+    visibleTasks,
+    projects,
+    toggleTask,
+    deleteTask,
+    openEdit,
+    openCreate,
+    canEditTask,
+    canToggleTask,
+  } = useDashboard();
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<Filter>("All");
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
 
+  const projectName = useMemo(() => {
+    const map = new Map(projects.map((p) => [p.id, p.name]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [projects]);
+
   const counts = useMemo(
     () => ({
-      All: tasks.length,
-      "In-progress": tasks.filter((t) => t.status === "In-progress").length,
-      Pending: tasks.filter((t) => t.status === "Pending").length,
-      Completed: tasks.filter((t) => t.status === "Completed").length,
+      All: visibleTasks.length,
+      "In-progress": visibleTasks.filter((t) => t.status === "In-progress").length,
+      Pending: visibleTasks.filter((t) => t.status === "Pending").length,
+      Completed: visibleTasks.filter((t) => t.status === "Completed").length,
     }),
-    [tasks]
+    [visibleTasks]
   ) as Record<Filter, number>;
 
-  const visible = tasks.filter((t) => {
+  const visible = visibleTasks.filter((t) => {
     const matchesFilter = filter === "All" || t.status === filter;
     const q = query.toLowerCase();
     const matchesQuery =
       t.name.toLowerCase().includes(q) ||
-      t.assignee.name.toLowerCase().includes(q);
+      t.assignee.name.toLowerCase().includes(q) ||
+      projectName(t.projectId).toLowerCase().includes(q);
     return matchesFilter && matchesQuery;
   });
 
@@ -76,7 +91,7 @@ export function TaskBoard({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search task or assignee..."
+            placeholder="Search task, assignee, project..."
             className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
@@ -115,11 +130,11 @@ export function TaskBoard({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[820px] text-left text-sm">
           <thead>
             <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground">
               <th className="px-5 py-3 font-semibold">Task Name</th>
-              <th className="px-3 py-3 font-semibold">Created Date</th>
+              <th className="px-3 py-3 font-semibold">Project</th>
               <th className="px-3 py-3 font-semibold">Due Date</th>
               <th className="px-3 py-3 font-semibold">Assigned</th>
               <th className="px-3 py-3 font-semibold">Status</th>
@@ -130,37 +145,46 @@ export function TaskBoard({
           <tbody className="divide-y divide-border/60">
             {visible.map((task) => {
               const priority = priorityStyles[task.priority];
+              const editable = canEditTask(task);
+              const togglable = canToggleTask(task);
               return (
                 <tr key={task.id} className="align-middle hover:bg-muted/30">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => toggleTask(task.id)}
+                        onClick={() => togglable && toggleTask(task.id)}
+                        disabled={!togglable}
                         aria-label={task.done ? "Mark incomplete" : "Mark complete"}
                         className={cn(
                           "grid size-5 shrink-0 place-items-center rounded-full border transition",
                           task.done
                             ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30 bg-background hover:border-primary"
+                            : "border-muted-foreground/30 bg-background hover:border-primary",
+                          !togglable && "cursor-not-allowed opacity-50"
                         )}
                       >
                         {task.done && <Check className="size-3.5" strokeWidth={3} />}
                       </button>
-                      <span
-                        className={cn(
-                          "max-w-[16rem] truncate font-medium text-foreground",
-                          task.done && "text-muted-foreground line-through"
+                      <div className="min-w-0">
+                        <span
+                          className={cn(
+                            "block max-w-[18rem] truncate font-medium text-foreground",
+                            task.done && "text-muted-foreground line-through"
+                          )}
+                        >
+                          {task.name}
+                        </span>
+                        {task.memberGenerated && (
+                          <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                            <Sparkles className="size-2.5" />
+                            Member-generated
+                          </span>
                         )}
-                      >
-                        {task.name}
-                      </span>
+                      </div>
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3.5 text-muted-foreground">
-                    {task.createdDate}{" "}
-                    <span className="text-xs text-muted-foreground/70">
-                      {task.createdTime}
-                    </span>
+                    {projectName(task.projectId)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3.5 text-muted-foreground">
                     {task.dueDate}
@@ -197,22 +221,26 @@ export function TaskBoard({
                     </span>
                   </td>
                   <td className="px-3 py-3.5">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => openEdit(task)}
-                        aria-label="Edit task"
-                        className="grid size-7 place-items-center rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-primary"
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(task)}
-                        aria-label="Delete task"
-                        className="grid size-7 place-items-center rounded-md bg-rose-50 text-rose-500 hover:bg-rose-100"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
+                    {editable ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEdit(task)}
+                          aria-label="Edit task"
+                          className="grid size-7 place-items-center rounded-md bg-muted text-muted-foreground hover:bg-accent hover:text-primary"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(task)}
+                          aria-label="Delete task"
+                          className="grid size-7 place-items-center rounded-md bg-rose-50 text-rose-500 hover:bg-rose-100"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/60">—</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -222,7 +250,7 @@ export function TaskBoard({
 
         {visible.length === 0 && (
           <div className="px-5 py-14 text-center text-sm text-muted-foreground">
-            {tasks.length === 0
+            {visibleTasks.length === 0
               ? "No tasks yet. Create your first task to get started."
               : "No tasks match your search."}
           </div>

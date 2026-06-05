@@ -7,7 +7,7 @@ import { statusStyles } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
 
 export function ProjectStatusList() {
-  const { projects } = useDashboard();
+  const { visibleProjects } = useDashboard();
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm">
@@ -28,8 +28,14 @@ export function ProjectStatusList() {
         </Link>
       </div>
 
+      {visibleProjects.length === 0 && (
+        <p className="px-6 py-10 text-center text-sm text-muted-foreground">
+          No projects to show.
+        </p>
+      )}
+
       <ul className="divide-y divide-border/60">
-        {projects.map((project) => (
+        {visibleProjects.map((project) => (
           <li
             key={project.id}
             className="flex flex-wrap items-center gap-4 px-6 py-4"

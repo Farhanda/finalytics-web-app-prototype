@@ -3,25 +3,55 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpRight, Mail, X } from "lucide-react";
+import { ArrowUpRight, Mail, ShieldAlert, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { accessRoleStyles, type AccessRole } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
 
+const ACCESS_ORDER: AccessRole[] = ["Admin", "PM", "Member"];
+
 function TeamContent() {
-  const { team, tasks } = useDashboard();
+  const { team, tasks, role } = useDashboard();
   const searchParams = useSearchParams();
-  const role = searchParams.get("role");
+  const jobFilter = searchParams.get("role");
 
-  const members = role ? team.filter((m) => m.role === role) : team;
+  // The Team directory is an Admin-only surface.
+  if (role !== "Admin") {
+    return (
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card px-6 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-xl bg-rose-50 text-rose-500">
+            <ShieldAlert className="size-6" />
+          </span>
+          <h2 className="font-heading text-xl font-bold text-foreground">
+            Admins only
+          </h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            The team directory is available to workspace admins. Switch to an
+            Admin identity to manage people and roles.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const taskCountFor = (name: string) => {
-    const assigned = tasks.filter((t) => t.assignee.name === name);
+  const members = jobFilter
+    ? team.filter((m) => m.role === jobFilter)
+    : team;
+
+  const taskCountFor = (id: string) => {
+    const assigned = tasks.filter((t) => t.assigneeId === id);
     return {
       total: assigned.length,
       open: assigned.filter((t) => !t.done).length,
     };
   };
+
+  const accessCounts = ACCESS_ORDER.map((r) => ({
+    role: r,
+    count: team.filter((m) => m.accessRole === r).length,
+  }));
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -35,11 +65,33 @@ function TeamContent() {
         </p>
       </div>
 
-      {role && (
+      {/* Access-role summary */}
+      <div className="grid grid-cols-3 gap-4">
+        {accessCounts.map(({ role: r, count }) => (
+          <div
+            key={r}
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+          >
+            <span
+              className={cn(
+                "inline-flex rounded-md px-2 py-0.5 text-xs font-semibold",
+                accessRoleStyles[r]
+              )}
+            >
+              {r}
+            </span>
+            <div className="mt-3 font-heading text-2xl font-extrabold text-foreground">
+              {count}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {jobFilter && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Filtered by role:</span>
+          <span className="text-sm text-muted-foreground">Filtered by title:</span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-sm font-semibold text-primary">
-            {role}
+            {jobFilter}
             <Link href="/dashboard/team" aria-label="Clear filter">
               <X className="size-3.5" />
             </Link>
@@ -49,7 +101,7 @@ function TeamContent() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((member) => {
-          const { total, open } = taskCountFor(member.name);
+          const { total, open } = taskCountFor(member.id);
           return (
             <div
               key={member.id}
@@ -65,9 +117,19 @@ function TeamContent() {
                   {member.initials}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate font-semibold text-foreground">
-                    {member.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate font-semibold text-foreground">
+                      {member.name}
+                    </h3>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                        accessRoleStyles[member.accessRole]
+                      )}
+                    >
+                      {member.accessRole}
+                    </span>
+                  </div>
                   <p className="truncate text-sm text-muted-foreground">
                     {member.role}
                   </p>
@@ -107,7 +169,7 @@ function TeamContent() {
 
       {members.length === 0 && (
         <p className="rounded-2xl border border-border bg-card px-5 py-14 text-center text-sm text-muted-foreground">
-          No members in this role.
+          No members with this title.
         </p>
       )}
     </div>

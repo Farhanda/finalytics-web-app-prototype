@@ -4,19 +4,25 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronsUpDown, Home, RotateCcw } from "lucide-react";
+import { Check, ChevronsUpDown, Home, RotateCcw, UserCog } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
-import { navGroups } from "@/lib/dashboard-data";
+import { accessRoleStyles, navGroupsFor, type AccessRole } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
+
+const ROLE_ORDER: AccessRole[] = ["Admin", "PM", "Member"];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { tasks, profile, resetDemo } = useDashboard();
+  const { visibleTasks, team, currentUser, role, switchUser, resetDemo } =
+    useDashboard();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const openTasks = tasks.filter((t) => !t.done).length;
+  const navGroups = navGroupsFor(role);
+
+  // Open-task badge reflects what THIS user can see, not the whole workspace.
+  const openTasks = visibleTasks.filter((t) => !t.done).length;
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -84,6 +90,58 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() => setMenuOpen(false)}
             />
             <div className="absolute bottom-16 left-3 right-3 z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+              {/* Identity / role switcher (prototype: no real auth) */}
+              <div className="border-b border-border/60">
+                <p className="flex items-center gap-2 px-3 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <UserCog className="size-3.5" />
+                  Switch identity
+                </p>
+                <div className="max-h-64 overflow-y-auto pb-1">
+                  {ROLE_ORDER.map((r) => {
+                    const users = team.filter((m) => m.accessRole === r);
+                    if (users.length === 0) return null;
+                    return (
+                      <div key={r}>
+                        <p className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/60">
+                          {r}
+                        </p>
+                        {users.map((u) => {
+                          const isCurrent = u.id === currentUser.id;
+                          return (
+                            <button
+                              key={u.id}
+                              onClick={() => {
+                                switchUser(u.id);
+                                setMenuOpen(false);
+                                toast.success(`Viewing as ${u.name}`, {
+                                  description: `${u.accessRole} · ${u.role}`,
+                                });
+                              }}
+                              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                            >
+                              <span
+                                className={cn(
+                                  "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                                  u.tint
+                                )}
+                              >
+                                {u.initials}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">
+                                {u.name}
+                              </span>
+                              {isCurrent && (
+                                <Check className="size-4 text-primary" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <Link
                 href="/"
                 onClick={() => {
@@ -114,15 +172,30 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           onClick={() => setMenuOpen((v) => !v)}
           className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted"
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            {profile.initials}
+          <span
+            className={cn(
+              "grid size-9 shrink-0 place-items-center rounded-full text-sm font-semibold",
+              currentUser.tint
+            )}
+          >
+            {currentUser.initials}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-foreground">
-              {profile.name}
+            <span className="flex items-center gap-1.5">
+              <span className="block truncate text-sm font-semibold text-foreground">
+                {currentUser.name}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                  accessRoleStyles[role]
+                )}
+              >
+                {role}
+              </span>
             </span>
             <span className="block truncate text-xs text-muted-foreground">
-              {profile.email}
+              {currentUser.email}
             </span>
           </span>
           <ChevronsUpDown className="size-4 text-muted-foreground" />

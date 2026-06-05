@@ -59,43 +59,57 @@ The `/dashboard` area is a fully **functional** application — every control do
 something, and the whole thing is driven by one shared state store.
 
 **Single source of truth.** [DashboardProvider](src/components/dashboard/provider.tsx)
-holds tasks, projects, team, an activity log, and the user **profile** in React Context,
+holds tasks, projects, team, an activity log, and the **current user** in React Context,
 **persisted to `localStorage`** so your changes survive a refresh. Every widget reads from
 it and every action writes to it, so the UI stays in sync end-to-end.
 
+**Role-based access.** There are three access roles, enforced by pure selectors in
+[src/lib/access.ts](src/lib/access.ts):
+
+| Role | Sees | Can do |
+| --- | --- | --- |
+| **Admin** | All projects & tasks | Create projects, assign a PM, manage anything |
+| **PM** | Only the projects they own | Set project members, create tasks for them |
+| **Member** | Only their projects & their own tasks | Complete tasks; create tasks (flagged *member-generated*) |
+
+Because there's no backend, the sidebar user menu is an **identity switcher** — jump
+between the Admin, the two PMs, and any Team Member to see each role's view instantly.
+
 **What actually works:**
 
+- **Switch identity** — the sidebar footer lets you view the app as any user; the nav,
+  visible projects/tasks, and permissions all change with the selected role.
+- **Create projects (Admin)** — a project dialog ([project-dialog.tsx](src/components/dashboard/project-dialog.tsx))
+  to name a project, assign a PM, and pick the team. PMs reopen it to manage their members.
 - **Create / edit / delete tasks** — a shared dialog ([task-dialog.tsx](src/components/dashboard/task-dialog.tsx))
-  opened from the topbar or any board. Deletes ask for confirmation. Each action shows a
-  toast and appends to the activity log.
+  opened from the topbar or any board. Tasks are filed under a project and assigned to one
+  of its members; Members self-assign and their tasks are flagged. Each action shows a toast
+  and appends to the activity log.
 - **Complete a task** — the checkbox toggles done **and** flips status to/from
   `Completed`, updating every derived number live.
 - **Derived KPIs** — Team Members, Active Projects, Open Tasks, and Completion % are all
   computed from state (no hard-coded figures).
-- **Edit your profile** — Settings updates your name/email; the greeting, sidebar, and
-  future activity entries reflect it instantly.
+- **Edit your profile** — Settings updates the current user's name/email; the greeting,
+  sidebar, and future activity entries reflect it instantly.
 - **Search** — the topbar search routes to `/dashboard/tasks?q=…`; the board reads the
-  query and filters. Team cards' "View tasks" deep-link the same way.
+  query and filters by task, assignee, or project. Cards "View tasks" deep-link the same way.
 - **Notifications** — the bell opens a dropdown fed by the live activity log.
-- **Sidebar** — the Tasks badge shows the real open-task count; the user menu has
-  "Back to home" and "Reset demo data".
+- **Sidebar** — the Task badge shows the real open-task count for the current user; the
+  user menu has the identity switcher, "Back to home", and "Reset demo data".
 
-**Pages** (everything in the nav is a real, connected page):
+**Pages** (the primary nav is Dashboard / Project / Task):
 
 | Route | What it does |
 | --- | --- |
-| `/dashboard` | Overview — KPIs, weekly chart, activity feed, projects, task board |
-| `/dashboard/tasks` | Full task board (search via `?q=`, filter tabs, CRUD) |
-| `/dashboard/projects` | Project progress cards + status summary |
-| `/dashboard/calendar` | Tasks placed on their due dates; click a task to edit it |
-| `/dashboard/team` | Members + per-person task counts; filter via `?role=` |
-| `/dashboard/roles` | Roles derived from the team, with per-role workload → Team |
-| `/dashboard/settings` | Edit profile (live across the app), workspace info, reset |
-| `/dashboard/help` | Resources, FAQ, and a contact form (knows your email) |
+| `/dashboard` | Role-scoped overview — KPIs, weekly chart, activity, projects, task board |
+| `/dashboard/projects` | Project cards with PM + team; create/manage by role |
+| `/dashboard/tasks` | Task board scoped to the current user (search via `?q=`, CRUD) |
+| `/dashboard/team` | **Admin-only** directory — access roles, titles, task counts |
+| `/dashboard/settings` | Edit profile, see your access role, scoped workspace info, reset |
 
-**How they connect:** Roles → "View members" deep-links to Team filtered by role →
-"View tasks" deep-links to the task board searched by name. Creating/editing a task
-updates the board, calendar, KPIs, team counts, role workload, and activity feed at once.
+**How they connect:** the selected identity drives every view — projects, tasks, KPIs, and
+the nav itself. Project cards "Tasks" deep-link to the board searched by project name.
+Creating/editing a task updates the board, KPIs, team counts, and activity feed at once.
 
 Seed data lives in [src/lib/dashboard-data.ts](src/lib/dashboard-data.ts); task data is
 shared with the landing-page mockups via [src/lib/data.ts](src/lib/data.ts).

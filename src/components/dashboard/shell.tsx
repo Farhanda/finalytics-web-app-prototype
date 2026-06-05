@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { DashboardProvider } from "@/components/dashboard/provider";
 import { TaskDialog } from "@/components/dashboard/task-dialog";
+import { ProjectDialog } from "@/components/dashboard/project-dialog";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,6 +59,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       </div>
 
       <TaskDialog />
+      <ProjectDialog />
       <Toaster position="top-right" richColors />
     </div>
   );

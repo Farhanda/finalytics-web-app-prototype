@@ -1,53 +1,87 @@
 "use client";
 
-import { Box, CheckCircle2, ListTodo, Users, type LucideIcon } from "lucide-react";
+import {
+  Box,
+  CheckCircle2,
+  FolderKanban,
+  ListTodo,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useDashboard } from "@/components/dashboard/provider";
 
-export function StatCards() {
-  const { tasks, projects, team } = useDashboard();
+type Card = {
+  label: string;
+  value: string;
+  hint: string;
+  icon: LucideIcon;
+  bar?: number;
+};
 
-  const total = tasks.length;
-  const done = tasks.filter((t) => t.done).length;
+export function StatCards() {
+  const { visibleTasks, visibleProjects, team, role } = useDashboard();
+
+  const total = visibleTasks.length;
+  const done = visibleTasks.filter((t) => t.done).length;
   const open = total - done;
   const completion = total ? Math.round((done / total) * 100) : 0;
+  const onTrack = visibleProjects.filter((p) => p.status === "On track").length;
   const roles = new Set(team.map((m) => m.role)).size;
-  const onTrack = projects.filter((p) => p.status === "On track").length;
 
-  const cards: {
-    label: string;
-    value: string;
-    hint: string;
-    icon: LucideIcon;
-    bar?: number;
-  }[] = [
-    {
-      label: "Team Members",
-      value: String(team.length),
-      hint: `across ${roles} roles`,
-      icon: Users,
-    },
-    {
-      label: "Active Projects",
-      value: String(projects.length),
-      hint: `${onTrack} on track`,
-      icon: Box,
-    },
-    {
-      label: "Open Tasks",
-      value: String(open),
-      hint: `${total} total · ${done} done`,
-      icon: ListTodo,
-    },
-    {
-      label: "Completion",
-      value: `${completion}%`,
-      hint: `${done} of ${total} done`,
-      icon: CheckCircle2,
-      bar: completion,
-    },
-  ];
+  const completionCard: Card = {
+    label: "Completion",
+    value: `${completion}%`,
+    hint: `${done} of ${total} done`,
+    icon: CheckCircle2,
+    bar: completion,
+  };
+
+  const cards: Card[] =
+    role === "Admin"
+      ? [
+          {
+            label: "Team Members",
+            value: String(team.length),
+            hint: `across ${roles} roles`,
+            icon: Users,
+          },
+          {
+            label: "Active Projects",
+            value: String(visibleProjects.length),
+            hint: `${onTrack} on track`,
+            icon: Box,
+          },
+          {
+            label: "Open Tasks",
+            value: String(open),
+            hint: `${total} total · ${done} done`,
+            icon: ListTodo,
+          },
+          completionCard,
+        ]
+      : [
+          {
+            label: "My Projects",
+            value: String(visibleProjects.length),
+            hint: `${onTrack} on track`,
+            icon: FolderKanban,
+          },
+          {
+            label: "Open Tasks",
+            value: String(open),
+            hint: `${total} total · ${done} done`,
+            icon: ListTodo,
+          },
+          {
+            label: "Completed",
+            value: String(done),
+            hint: `out of ${total}`,
+            icon: CheckCircle2,
+          },
+          completionCard,
+        ];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

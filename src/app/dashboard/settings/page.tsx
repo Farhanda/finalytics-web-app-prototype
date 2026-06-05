@@ -7,6 +7,7 @@ import { RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { accessRoleStyles } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
 
 const fieldClass =
@@ -20,8 +21,15 @@ function initialsFrom(name: string) {
 }
 
 export default function SettingsPage() {
-  const { profile, updateProfile, tasks, projects, team, resetDemo } =
-    useDashboard();
+  const {
+    profile,
+    updateProfile,
+    role,
+    team,
+    visibleProjects,
+    visibleTasks,
+    resetDemo,
+  } = useDashboard();
 
   const [name, setName] = useState(profile.name);
   const [email, setEmail] = useState(profile.email);
@@ -44,12 +52,19 @@ export default function SettingsPage() {
     toast.success("Profile updated");
   };
 
+  const isAdmin = role === "Admin";
   const workspace = [
     { label: "Workspace", value: "autom8 by Finalytics" },
-    { label: "Plan", value: "Team" },
-    { label: "Members", value: String(team.length) },
-    { label: "Projects", value: String(projects.length) },
-    { label: "Total tasks", value: String(tasks.length) },
+    { label: "Your access role", value: role },
+    ...(isAdmin ? [{ label: "Members", value: String(team.length) }] : []),
+    {
+      label: isAdmin ? "Projects" : "My projects",
+      value: String(visibleProjects.length),
+    },
+    {
+      label: isAdmin ? "Total tasks" : "My tasks",
+      value: String(visibleTasks.length),
+    },
   ];
 
   return (
@@ -78,7 +93,15 @@ export default function SettingsPage() {
             {initialsFrom(name)}
           </span>
           <div className="text-sm text-muted-foreground">
-            Your avatar uses your initials.
+            <span
+              className={cn(
+                "inline-flex rounded-md px-2 py-0.5 text-xs font-semibold",
+                accessRoleStyles[role]
+              )}
+            >
+              {role}
+            </span>
+            <p className="mt-1">Your avatar uses your initials.</p>
           </div>
         </div>
 
