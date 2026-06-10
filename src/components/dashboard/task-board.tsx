@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import {
+  Check,
+  GitCommitHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -166,6 +174,22 @@ export function TaskBoard({
                         {task.done && <Check className="size-3.5" strokeWidth={3} />}
                       </button>
                       <div className="min-w-0">
+                        <div className="mb-0.5 flex items-center gap-2">
+                          {task.key && (
+                            <span className="font-mono text-[11px] font-semibold text-primary">
+                              {task.key}
+                            </span>
+                          )}
+                          {task.commits && task.commits.length > 0 && (
+                            <span
+                              className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground"
+                              title={`${task.commits.length} linked commit(s)`}
+                            >
+                              <GitCommitHorizontal className="size-3" />
+                              {task.commits.length}
+                            </span>
+                          )}
+                        </div>
                         <span
                           className={cn(
                             "block max-w-[18rem] truncate font-medium text-foreground",

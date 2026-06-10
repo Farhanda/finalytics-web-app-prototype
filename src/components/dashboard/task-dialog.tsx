@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { ExternalLink, GitCommitHorizontal, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -285,6 +285,48 @@ export function TaskDialog() {
                 ))}
               </select>
             </div>
+
+            {isEdit && dialog.task && (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    <GitCommitHorizontal className="size-4 text-muted-foreground" />
+                    Linked commits
+                  </span>
+                  <span className="rounded bg-card px-1.5 py-0.5 font-mono text-xs font-semibold text-primary ring-1 ring-border">
+                    {dialog.task.key}
+                  </span>
+                </div>
+                {dialog.task.commits && dialog.task.commits.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {dialog.task.commits.map((c) => (
+                      <li key={c.sha} className="flex items-start gap-2 text-sm">
+                        <span className="mt-0.5 font-mono text-xs text-muted-foreground">
+                          {c.sha}
+                        </span>
+                        <a
+                          href={c.url || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="min-w-0 flex-1 truncate text-foreground hover:underline"
+                        >
+                          {c.message}
+                        </a>
+                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No commits yet. Mention{" "}
+                    <span className="font-mono font-semibold text-foreground">
+                      {dialog.task.key}
+                    </span>{" "}
+                    in a commit message to link it here.
+                  </p>
+                )}
+              </div>
+            )}
 
             {error && (
               <p className="text-sm font-medium text-destructive">{error}</p>

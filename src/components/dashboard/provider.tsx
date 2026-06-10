@@ -80,6 +80,15 @@ function dueFromInput(value: string) {
   return `${String(d).padStart(2, "0")} ${MONTHS[mo - 1]}, ${y}`;
 }
 
+// Next sequential task key (AUT-1, AUT-2, …) based on the highest existing one.
+function nextTaskKey(existing: Task[]): string {
+  const max = existing.reduce((m, t) => {
+    const n = Number(/^AUT-(\d+)$/.exec(t.key ?? "")?.[1]);
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return `AUT-${max + 1}`;
+}
+
 export type TaskInput = {
   name: string;
   projectId: string;
@@ -481,10 +490,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const member = team.find((m) => m.id === input.assigneeId) ?? team[0];
       const now = new Date();
       const data: Omit<Task, "id"> = {
+        key: nextTaskKey(tasks),
         name: input.name.trim(),
         createdDate: formatDate(now),
         createdTime: formatTime(now),
         dueDate: dueFromInput(input.dueDate),
+        commits: [],
         projectId: input.projectId,
         assigneeId: member.id,
         assignee: {
@@ -512,7 +523,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           (err) => console.error("[firestore] addTask failed", err)
         );
     },
-    [team, currentUser, currentUserId, role, logActivity]
+    [tasks, team, currentUser, currentUserId, role, logActivity]
   );
 
   const updateTask = useCallback(

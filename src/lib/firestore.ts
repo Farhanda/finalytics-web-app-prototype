@@ -7,18 +7,22 @@
 
 import {
   addDoc,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
   getDocs,
+  limit,
+  query,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
   type QuerySnapshot,
 } from "firebase/firestore";
 
 import { db } from "./firebase";
-import { tasks as seedTasks, type Task } from "./data";
+import { tasks as seedTasks, type LinkedCommit, type Task } from "./data";
 import {
   seedActivities,
   seedProjects,
@@ -84,6 +88,51 @@ export async function createUser(
 
 export function updateUserDoc(id: string, partial: Partial<TeamMember>) {
   return updateDoc(doc(usersCol, id), partial);
+}
+
+export type CommitLinkResult = {
+  taskId: string;
+  taskName: string;
+  taskKey: string;
+  assignee: { name: string; initials: string; tint: string };
+  closed: boolean;
+};
+
+// Link a git commit to the task whose `key` matches (e.g. "AUT-12"). Appends the
+// commit to the task's `commits` array and advances status: a closing keyword
+// ("closes/fixes/resolves") completes the task; otherwise a Pending task moves
+// to In-progress. Returns null when no task carries that key.
+export async function linkCommitToTask(
+  key: string,
+  commit: LinkedCommit,
+  opts: { close: boolean }
+): Promise<CommitLinkResult | null> {
+  const snap = await getDocs(
+    query(tasksCol, where("key", "==", key), limit(1))
+  );
+  if (snap.empty) return null;
+
+  const d = snap.docs[0];
+  const task = { id: d.id, ...d.data() } as Task;
+
+  const update: Partial<Task> = {
+    commits: arrayUnion(commit) as unknown as LinkedCommit[],
+  };
+  if (opts.close) {
+    update.done = true;
+    update.status = "Completed";
+  } else if (task.status === "Pending") {
+    update.status = "In-progress";
+  }
+  await updateDoc(d.ref, update);
+
+  return {
+    taskId: d.id,
+    taskName: task.name,
+    taskKey: key,
+    assignee: task.assignee,
+    closed: opts.close,
+  };
 }
 
 export async function logActivityDoc(

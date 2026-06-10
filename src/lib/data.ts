@@ -4,12 +4,24 @@
 export type Priority = "High" | "Medium" | "Low";
 export type TaskStatus = "In-progress" | "Pending" | "Completed";
 
+// A git commit linked to a task via its key in the commit message.
+export type LinkedCommit = {
+  sha: string;
+  message: string;
+  url: string;
+  author: string;
+};
+
 export type Task = {
   id: string;
+  // Human-typable task key (e.g. "AUT-12") referenced in commit messages.
+  key: string;
   name: string;
   createdDate: string;
   createdTime: string;
   dueDate: string;
+  // Commits linked from GitHub (newest first). Optional — most tasks have none.
+  commits?: LinkedCommit[];
   // Which project this task belongs to (see seedProjects in dashboard-data.ts).
   projectId: string;
   // The member the task is assigned to. `assignee` keeps a denormalized copy
@@ -28,6 +40,7 @@ export type Task = {
 export const tasks: Task[] = [
   {
     id: "t1",
+    key: "AUT-1",
     name: "Review system logs for any reported errors",
     createdDate: "23 April, 2024",
     createdTime: "05:09 PM",
@@ -43,6 +56,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t2",
+    key: "AUT-2",
     name: "Conduct user testing to identify potential bugs",
     createdDate: "14 May, 2024",
     createdTime: "10:51 AM",
@@ -58,6 +72,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t3",
+    key: "AUT-3",
     name: "Gather feedback from stakeholders regarding any issues",
     createdDate: "12 April, 2024",
     createdTime: "12:09 PM",
@@ -73,6 +88,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t4",
+    key: "AUT-4",
     name: "Prioritize bugs based on severity and impact",
     createdDate: "10 April, 2024",
     createdTime: "10:09 PM",
@@ -88,6 +104,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t5",
+    key: "AUT-5",
     name: "Investigate and analyze the root cause of each bug",
     createdDate: "22 May, 2024",
     createdTime: "03:41 PM",
@@ -103,6 +120,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t6",
+    key: "AUT-6",
     name: "Develop and implement fixes for the identified bugs",
     createdDate: "18 May, 2024",
     createdTime: "09:09 AM",
@@ -118,6 +136,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t7",
+    key: "AUT-7",
     name: "Add unit tests for the auth module",
     createdDate: "20 May, 2024",
     createdTime: "02:15 PM",
