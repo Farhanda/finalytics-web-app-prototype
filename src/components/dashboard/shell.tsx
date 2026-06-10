@@ -10,6 +10,7 @@ import { Topbar } from "@/components/dashboard/topbar";
 import { DashboardProvider, useDashboard } from "@/components/dashboard/provider";
 import { TaskDialog } from "@/components/dashboard/task-dialog";
 import { ProjectDialog } from "@/components/dashboard/project-dialog";
+import { PersonDialog } from "@/components/dashboard/person-dialog";
 
 // Shown until the first Firestore snapshot resolves (and while it seeds on first run).
 function LoadingState() {
@@ -102,6 +103,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
       <TaskDialog />
       <ProjectDialog />
+      <PersonDialog />
       <Toaster position="top-right" richColors />
     </div>
   );

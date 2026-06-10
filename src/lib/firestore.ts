@@ -75,6 +75,13 @@ export function updateProjectDoc(
   return updateDoc(doc(projectsCol, id), partial);
 }
 
+export async function createUser(
+  data: Omit<TeamMember, "id">
+): Promise<string> {
+  const ref = await addDoc(usersCol, data);
+  return ref.id;
+}
+
 export function updateUserDoc(id: string, partial: Partial<TeamMember>) {
   return updateDoc(doc(usersCol, id), partial);
 }

@@ -3,16 +3,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowUpRight, Mail, ShieldAlert, X } from "lucide-react";
+import { ArrowUpRight, Mail, ShieldAlert, UserPlus, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { accessRoleStyles, type AccessRole } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
 
 const ACCESS_ORDER: AccessRole[] = ["Admin", "PM", "Member"];
 
 function TeamContent() {
-  const { team, tasks, role } = useDashboard();
+  const { team, tasks, role, canAddPeople, openAddPerson } = useDashboard();
   const searchParams = useSearchParams();
   const jobFilter = searchParams.get("role");
 
@@ -55,14 +56,21 @@ function TeamContent() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h2 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">
-          Team
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {team.length} people across {new Set(team.map((m) => m.role)).size}{" "}
-          roles.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">
+            Team
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {team.length} people across {new Set(team.map((m) => m.role)).size}{" "}
+            roles.
+          </p>
+        </div>
+        {canAddPeople && (
+          <Button className="font-semibold" onClick={openAddPerson}>
+            <UserPlus className="size-4" /> Add people
+          </Button>
+        )}
       </div>
 
       {/* Access-role summary */}

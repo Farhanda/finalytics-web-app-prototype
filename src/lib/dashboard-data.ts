@@ -171,6 +171,21 @@ export const accessRoleStyles: Record<AccessRole, string> = {
   Member: "bg-muted text-muted-foreground",
 };
 
+// Rotating avatar tints assigned when an Admin adds a new teammate, so each
+// person gets a distinct, readable color.
+export const memberTints = [
+  "bg-sky-100 text-sky-700",
+  "bg-rose-100 text-rose-700",
+  "bg-amber-100 text-amber-700",
+  "bg-violet-100 text-violet-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-orange-100 text-orange-700",
+];
+
 export type Activity = {
   id: string;
   actor: string;

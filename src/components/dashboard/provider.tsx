@@ -18,6 +18,7 @@ import {
 
 import { type Priority, type Task, type TaskStatus } from "@/lib/data";
 import {
+  memberTints,
   projectTints,
   seedTeam,
   type AccessRole,
@@ -41,6 +42,7 @@ import {
   activitiesCol,
   createProject,
   createTask,
+  createUser,
   deleteTaskDoc,
   fromSnap,
   logActivityDoc,
@@ -95,6 +97,13 @@ export type ProjectInput = {
   memberIds: string[];
   status: ProjectStatus;
   progress: number;
+};
+
+export type PersonInput = {
+  name: string;
+  email: string;
+  role: string; // job title
+  accessRole: AccessRole;
 };
 
 export type Profile = {
@@ -157,11 +166,13 @@ type Ctx = {
   canCreateTaskInProject: (project: DashboardProject) => boolean;
   canEditTask: (task: Task) => boolean;
   canToggleTask: (task: Task) => boolean;
+  canAddPeople: boolean;
 
   // Mutations (write to Firestore; UI updates via snapshots).
   updateProfile: (partial: Partial<Pick<Profile, "name" | "email">>) => void;
   addProject: (input: ProjectInput) => void;
   updateProject: (id: string, partial: Partial<ProjectInput>) => void;
+  addPerson: (input: PersonInput) => void;
   addTask: (input: TaskInput) => void;
   updateTask: (id: string, input: TaskInput) => void;
   deleteTask: (id: string) => void;
@@ -178,6 +189,11 @@ type Ctx = {
   openCreateProject: () => void;
   openEditProject: (project: DashboardProject) => void;
   setProjectDialogOpen: (open: boolean) => void;
+
+  // Add-person dialog.
+  personDialog: { open: boolean };
+  openAddPerson: () => void;
+  setPersonDialogOpen: (open: boolean) => void;
 
   resetDemo: () => void;
 };
@@ -371,6 +387,35 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       );
     },
     [currentUserId]
+  );
+
+  // Add a teammate. Writes a new `users` document to Firestore; the live users
+  // listener folds it into `team`, so it appears everywhere (Team directory,
+  // PM/member pickers, task assignees) without any extra wiring.
+  const addPerson = useCallback(
+    (input: PersonInput) => {
+      const name = input.name.trim();
+      const data: Omit<TeamMember, "id"> = {
+        name,
+        email: input.email.trim(),
+        role: input.role.trim() || "Team Member",
+        accessRole: input.accessRole,
+        initials: initialsFrom(name),
+        tint: memberTints[team.length % memberTints.length],
+      };
+      createUser(data)
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "added",
+            target: `${name} to the team`,
+          })
+        )
+        .catch((err) => console.error("[firestore] addPerson failed", err));
+    },
+    [team.length, currentUser, logActivity]
   );
 
   const addProject = useCallback(
@@ -589,6 +634,18 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const [personDialog, setPersonDialog] = useState<{ open: boolean }>({
+    open: false,
+  });
+  const openAddPerson = useCallback(
+    () => setPersonDialog({ open: true }),
+    []
+  );
+  const setPersonDialogOpen = useCallback(
+    (open: boolean) => setPersonDialog({ open }),
+    []
+  );
+
   const resetDemo = useCallback(() => {
     seedFirestore().catch(
       (err) => console.error("[firestore] resetDemo failed", err)
@@ -621,9 +678,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       canCreateTaskInProject: canCreateTaskInProjectBound,
       canEditTask: canEditTaskBound,
       canToggleTask: canToggleTaskBound,
+      canAddPeople: role === "Admin",
       updateProfile,
       addProject,
       updateProject,
+      addPerson,
       addTask,
       updateTask,
       deleteTask,
@@ -636,6 +695,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       openCreateProject,
       openEditProject,
       setProjectDialogOpen,
+      personDialog,
+      openAddPerson,
+      setPersonDialogOpen,
       resetDemo,
     }),
     [
@@ -663,6 +725,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       addProject,
       updateProject,
+      addPerson,
       addTask,
       updateTask,
       deleteTask,
@@ -675,6 +738,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       openCreateProject,
       openEditProject,
       setProjectDialogOpen,
+      personDialog,
+      openAddPerson,
+      setPersonDialogOpen,
       resetDemo,
     ]
   );
