@@ -37,6 +37,17 @@ function toInputDate(due: string): string {
   return `${m[3]}-${String(month + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
 }
 
+function formatCommitTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function TaskDialog() {
   const {
     dialog,
@@ -298,31 +309,44 @@ export function TaskDialog() {
                   </span>
                 </div>
                 {dialog.task.commits && dialog.task.commits.length > 0 ? (
-                  <ul className="space-y-1.5">
-                    {dialog.task.commits.map((c) => (
-                      <li key={c.sha} className="flex items-start gap-2 text-sm">
-                        <span className="mt-0.5 font-mono text-xs text-muted-foreground">
-                          {c.sha}
-                        </span>
+                  <ul className="space-y-2.5">
+                    {dialog.task.commits.map((c, i) => (
+                      <li key={`${c.sha}-${i}`} className="text-sm">
                         <a
                           href={c.url || "#"}
                           target="_blank"
                           rel="noreferrer"
-                          className="min-w-0 flex-1 truncate text-foreground hover:underline"
+                          className="flex items-center gap-1 font-medium text-foreground hover:underline"
                         >
-                          {c.message}
+                          <span className="truncate">{c.message}</span>
+                          <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
                         </a>
-                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                        {c.body && (
+                          <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
+                            {c.body.trim()}
+                          </p>
+                        )}
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                          <span className="font-mono">{c.sha}</span>
+                          <span>·</span>
+                          <span>{c.author}</span>
+                          {c.timestamp && (
+                            <>
+                              <span>·</span>
+                              <span>{formatCommitTime(c.timestamp)}</span>
+                            </>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    No commits yet. Mention{" "}
+                    No commits yet. While working this task, run{" "}
                     <span className="font-mono font-semibold text-foreground">
-                      {dialog.task.key}
+                      autom8 commit {dialog.task.key}
                     </span>{" "}
-                    in a commit message to link it here.
+                    and they show up here.
                   </p>
                 )}
               </div>

@@ -22,7 +22,12 @@ import {
 } from "firebase/firestore";
 
 import { db } from "./firebase";
-import { tasks as seedTasks, type LinkedCommit, type Task } from "./data";
+import {
+  tasks as seedTasks,
+  type LinkedCommit,
+  type Task,
+  type TaskStatus,
+} from "./data";
 import {
   seedActivities,
   seedProjects,
@@ -90,39 +95,39 @@ export function updateUserDoc(id: string, partial: Partial<TeamMember>) {
   return updateDoc(doc(usersCol, id), partial);
 }
 
-export type CommitLinkResult = {
+export type TaskUpdateInput = {
+  status?: TaskStatus;
+  commit?: LinkedCommit;
+};
+
+export type TaskUpdateResult = {
   taskId: string;
   taskName: string;
   taskKey: string;
+  status: TaskStatus;
   assignee: { name: string; initials: string; tint: string };
-  closed: boolean;
 };
 
-// Link a git commit to the task whose `key` matches (e.g. "AUT-12"). Appends the
-// commit to the task's `commits` array and advances status: a closing keyword
-// ("closes/fixes/resolves") completes the task; otherwise a Pending task moves
-// to In-progress. Returns null when no task carries that key.
-export async function linkCommitToTask(
+// Update the task with the given key: optionally set status (Completed also ticks
+// `done`) and/or append a commit. Returns null when no task carries that key.
+// Used by the autom8 task API (client-SDK path).
+export async function updateTaskByKey(
   key: string,
-  commit: LinkedCommit,
-  opts: { close: boolean }
-): Promise<CommitLinkResult | null> {
-  const snap = await getDocs(
-    query(tasksCol, where("key", "==", key), limit(1))
-  );
+  input: TaskUpdateInput
+): Promise<TaskUpdateResult | null> {
+  const snap = await getDocs(query(tasksCol, where("key", "==", key), limit(1)));
   if (snap.empty) return null;
 
   const d = snap.docs[0];
   const task = { id: d.id, ...d.data() } as Task;
 
-  const update: Partial<Task> = {
-    commits: arrayUnion(commit) as unknown as LinkedCommit[],
-  };
-  if (opts.close) {
-    update.done = true;
-    update.status = "Completed";
-  } else if (task.status === "Pending") {
-    update.status = "In-progress";
+  const update: Partial<Task> = {};
+  if (input.commit) {
+    update.commits = arrayUnion(input.commit) as unknown as LinkedCommit[];
+  }
+  if (input.status) {
+    update.status = input.status;
+    update.done = input.status === "Completed";
   }
   await updateDoc(d.ref, update);
 
@@ -130,9 +135,14 @@ export async function linkCommitToTask(
     taskId: d.id,
     taskName: task.name,
     taskKey: key,
+    status: input.status ?? task.status,
     assignee: task.assignee,
-    closed: opts.close,
   };
+}
+
+// List tasks for the API (client-SDK path).
+export async function listTasks(): Promise<Task[]> {
+  return fromSnap<Task>(await getDocs(tasksCol));
 }
 
 export async function logActivityDoc(

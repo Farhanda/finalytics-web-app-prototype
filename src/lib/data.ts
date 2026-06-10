@@ -4,17 +4,22 @@
 export type Priority = "High" | "Medium" | "Low";
 export type TaskStatus = "In-progress" | "Pending" | "Completed";
 
-// A git commit linked to a task via its key in the commit message.
+// A git commit linked to a task. Reported by the autom8 CLI when Claude (or a
+// developer) works on a task — the full message body + timestamp are kept so the
+// daily report can describe what was done and when.
 export type LinkedCommit = {
   sha: string;
-  message: string;
+  message: string; // subject (first line)
+  body?: string; // remaining commit body (bullets / details)
   url: string;
   author: string;
+  timestamp?: string; // ISO 8601 commit time
 };
 
 export type Task = {
   id: string;
-  // Human-typable task key (e.g. "AUT-12") referenced in commit messages.
+  // Short task handle (e.g. "AUT-12") used by the autom8 CLI / Claude to target
+  // a task. No longer required inside commit messages.
   key: string;
   name: string;
   createdDate: string;

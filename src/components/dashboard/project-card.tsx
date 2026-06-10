@@ -170,11 +170,12 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
         <div className="mt-4 min-h-24">
           {commits.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              No commits linked yet. Reference a task key (e.g.{" "}
+              No commits yet. They appear here as Claude works the project&apos;s
+              tasks and runs{" "}
               <span className="font-mono font-semibold text-foreground">
-                AUT-12
+                autom8 commit
               </span>
-              ) in a commit message.
+              .
             </div>
           ) : (
             <ul className="max-h-64 space-y-1 overflow-y-auto">
@@ -198,6 +199,17 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
                       <span className="font-mono">{c.sha}</span>
                       <span>·</span>
                       <span className="truncate">{c.author}</span>
+                      {c.timestamp && (
+                        <>
+                          <span>·</span>
+                          <span className="shrink-0">
+                            {new Date(c.timestamp).toLocaleDateString(undefined, {
+                              day: "2-digit",
+                              month: "short",
+                            })}
+                          </span>
+                        </>
+                      )}
                       <span
                         className="ml-auto shrink-0 font-mono font-semibold text-primary"
                         title={c.taskName}

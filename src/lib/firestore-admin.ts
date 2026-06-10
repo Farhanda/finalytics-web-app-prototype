@@ -1,19 +1,17 @@
-// Server-side Firestore writes via the Admin SDK. Mirrors the commit-linking
-// helpers in ./firestore.ts (client SDK) so the webhook route can use whichever
-// is configured. Same signatures + return shape, so callers are interchangeable.
+// Server-side Firestore writes via the Admin SDK. Mirrors the helpers in
+// ./firestore.ts (client SDK) so the task API can use whichever is configured.
 
 import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb } from "./firebase-admin";
 import type { LinkedCommit, Task } from "./data";
 import type { Activity } from "./dashboard-data";
-import type { CommitLinkResult } from "./firestore";
+import type { TaskUpdateInput, TaskUpdateResult } from "./firestore";
 
-export async function linkCommitToTaskAdmin(
+export async function updateTaskByKeyAdmin(
   key: string,
-  commit: LinkedCommit,
-  opts: { close: boolean }
-): Promise<CommitLinkResult | null> {
+  input: TaskUpdateInput
+): Promise<TaskUpdateResult | null> {
   if (!adminDb) return null;
 
   const snap = await adminDb
@@ -26,14 +24,11 @@ export async function linkCommitToTaskAdmin(
   const d = snap.docs[0];
   const task = d.data() as Task;
 
-  const update: Record<string, unknown> = {
-    commits: FieldValue.arrayUnion(commit),
-  };
-  if (opts.close) {
-    update.done = true;
-    update.status = "Completed";
-  } else if (task.status === "Pending") {
-    update.status = "In-progress";
+  const update: Record<string, unknown> = {};
+  if (input.commit) update.commits = FieldValue.arrayUnion(input.commit);
+  if (input.status) {
+    update.status = input.status;
+    update.done = input.status === "Completed";
   }
   await d.ref.update(update);
 
@@ -41,9 +36,15 @@ export async function linkCommitToTaskAdmin(
     taskId: d.id,
     taskName: task.name,
     taskKey: key,
+    status: input.status ?? task.status,
     assignee: task.assignee,
-    closed: opts.close,
   };
+}
+
+export async function listTasksAdmin(): Promise<Task[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb.collection("tasks").get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task);
 }
 
 export async function logActivityAdmin(
@@ -56,3 +57,6 @@ export async function logActivityAdmin(
     createdAt: Date.now(),
   });
 }
+
+// Re-export so the LinkedCommit type stays handy at this layer.
+export type { LinkedCommit };

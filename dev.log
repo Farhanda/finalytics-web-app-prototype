@@ -1,0 +1,13 @@
+$ next dev
+   ▲ Next.js 15.5.19
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.170:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 14.4s
+ ○ Compiling /api/integration/status ...
+ ✓ Compiled /api/integration/status in 2.5s (330 modules)
+ GET /api/integration/status 200 in 15117ms
+ ○ Compiling /api/tasks/update ...
+ ✓ Compiled /api/tasks/update in 1424ms (503 modules)

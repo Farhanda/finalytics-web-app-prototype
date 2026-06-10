@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { accessRoleStyles } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
-import { GithubIntegrationCard } from "@/components/dashboard/github-card";
+import { TaskSyncCard } from "@/components/dashboard/integration-card";
 
 const fieldClass =
   "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40";
@@ -163,7 +163,7 @@ export default function SettingsPage() {
       </div>
 
       {/* GitHub integration */}
-      <GithubIntegrationCard />
+      <TaskSyncCard />
 
       {/* Danger zone */}
       <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6">
