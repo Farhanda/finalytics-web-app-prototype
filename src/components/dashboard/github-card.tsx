@@ -6,18 +6,34 @@ import { Check, Copy, GitBranch } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+type Status = {
+  configured: boolean;
+  storage: "admin" | "client";
+  writeBack: boolean;
+};
+
 export function GithubIntegrationCard() {
   const [url, setUrl] = useState("");
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const configured = status?.configured ?? null;
 
   useEffect(() => {
     const endpoint = `${window.location.origin}/api/github/webhook`;
     setUrl(endpoint);
     fetch(endpoint)
       .then((r) => r.json())
-      .then((d) => setConfigured(Boolean(d.configured)))
-      .catch(() => setConfigured(false));
+      .then((d) =>
+        setStatus({
+          configured: Boolean(d.configured),
+          storage: d.storage === "admin" ? "admin" : "client",
+          writeBack: Boolean(d.writeBack),
+        })
+      )
+      .catch(() =>
+        setStatus({ configured: false, storage: "client", writeBack: false })
+      );
   }, []);
 
   const copy = async () => {
@@ -68,6 +84,28 @@ export function GithubIntegrationCard() {
               : "Secret not set"}
         </span>
       </div>
+
+      {status && (
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-medium text-muted-foreground">
+            Storage:
+            <span className="font-semibold text-foreground">
+              {status.storage === "admin" ? "Admin SDK" : "Client SDK"}
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 font-medium text-muted-foreground">
+            Write-back to GitHub:
+            <span
+              className={cn(
+                "font-semibold",
+                status.writeBack ? "text-emerald-600" : "text-foreground"
+              )}
+            >
+              {status.writeBack ? "On" : "Off"}
+            </span>
+          </span>
+        </div>
+      )}
 
       <div className="mt-5 space-y-1.5">
         <p className="text-sm font-medium text-foreground">Webhook URL</p>

@@ -6,18 +6,32 @@
 // Firestore: the commit is appended to the task, and a closing keyword
 // ("closes/fixes/resolves AUT-12") marks the task Completed.
 //
-// Behaviour chosen: link + auto-status (Firestore only, no write-back to GitHub),
-// so the only credential needed is GITHUB_WEBHOOK_SECRET.
+// Writes go through the Firebase Admin SDK when it's configured (production
+// path), otherwise the client SDK (prototype). When the GitHub App credentials
+// are set, we also report back to GitHub with a commit status + comment.
 
 import { createHmac, timingSafeEqual } from "crypto";
 
 import { firebaseReady } from "@/lib/firebase";
-import { linkCommitToTask, logActivityDoc } from "@/lib/firestore";
+import { adminReady } from "@/lib/firebase-admin";
+import {
+  linkCommitToTask as linkCommitClient,
+  logActivityDoc as logActivityClient,
+} from "@/lib/firestore";
+import {
+  linkCommitToTaskAdmin,
+  logActivityAdmin,
+} from "@/lib/firestore-admin";
+import { githubAppReady, reportCommitFeedback, splitFullName } from "@/lib/github-app";
 import type { LinkedCommit } from "@/lib/data";
 
 export const runtime = "nodejs";
 
 const KEY_RE = /\bAUT-\d+\b/gi;
+
+// Pick the storage layer once: Admin SDK if configured, else the client SDK.
+const linkCommit = adminReady ? linkCommitToTaskAdmin : linkCommitClient;
+const logActivity = adminReady ? logActivityAdmin : logActivityClient;
 
 function initialsFrom(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -41,6 +55,11 @@ type PushCommit = {
   url: string;
   author?: { name?: string; username?: string };
 };
+type PushPayload = {
+  commits?: PushCommit[];
+  repository?: { full_name?: string };
+  installation?: { id?: number };
+};
 
 export async function POST(req: Request) {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
@@ -50,7 +69,7 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-  if (!firebaseReady) {
+  if (!firebaseReady && !adminReady) {
     return Response.json(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
@@ -64,35 +83,34 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: "Bad signature." }, { status: 401 });
   }
 
-  // GitHub sends a "ping" when the webhook is first created.
-  if (event === "ping") {
-    return Response.json({ ok: true, pong: true });
-  }
-  if (event !== "push") {
-    return Response.json({ ok: true, ignored: event });
-  }
+  if (event === "ping") return Response.json({ ok: true, pong: true });
+  if (event !== "push") return Response.json({ ok: true, ignored: event });
 
-  const payload = JSON.parse(raw) as { commits?: PushCommit[] };
+  const payload = JSON.parse(raw) as PushPayload;
   const commits = payload.commits ?? [];
+  const repo = splitFullName(payload.repository?.full_name ?? "");
+  const installationId = payload.installation?.id;
 
   const linked: { key: string; task: string; closed: boolean }[] = [];
+  let wroteBack = 0;
 
   for (const commit of commits) {
     const message = commit.message ?? "";
     const keys = [
-      ...new Set(
-        (message.match(KEY_RE) ?? []).map((k) => k.toUpperCase())
-      ),
+      ...new Set((message.match(KEY_RE) ?? []).map((k) => k.toUpperCase())),
     ];
     if (keys.length === 0) continue;
 
-    const authorName = commit.author?.name || commit.author?.username || "Someone";
+    const authorName =
+      commit.author?.name || commit.author?.username || "Someone";
     const linkedCommit: LinkedCommit = {
       sha: (commit.id ?? "").slice(0, 7),
       message: message.split("\n")[0].slice(0, 140),
       url: commit.url ?? "",
       author: authorName,
     };
+
+    const perCommit: { key: string; closed: boolean }[] = [];
 
     for (const key of keys) {
       const closeRe = new RegExp(
@@ -102,9 +120,9 @@ export async function POST(req: Request) {
       const close = closeRe.test(message);
 
       try {
-        const result = await linkCommitToTask(key, linkedCommit, { close });
+        const result = await linkCommit(key, linkedCommit, { close });
         if (!result) continue;
-        await logActivityDoc({
+        await logActivity({
           actor: authorName,
           initials: initialsFrom(authorName),
           tint: "bg-slate-100 text-slate-700",
@@ -112,13 +130,43 @@ export async function POST(req: Request) {
           target: result.taskName,
         });
         linked.push({ key, task: result.taskName, closed: close });
+        perCommit.push({ key, closed: close });
       } catch (err) {
         console.error(`[github] failed linking ${key}`, err);
       }
     }
+
+    // Report back to GitHub (only for GitHub App deliveries with credentials).
+    if (
+      perCommit.length > 0 &&
+      githubAppReady &&
+      repo &&
+      typeof installationId === "number"
+    ) {
+      const summary = perCommit
+        .map((p) => `${p.key}${p.closed ? " (Completed)" : ""}`)
+        .join(", ");
+      await reportCommitFeedback({
+        installationId,
+        owner: repo.owner,
+        repo: repo.repo,
+        sha: commit.id,
+        description: `Linked ${summary}`,
+        comment: `🔗 **autom8** linked this commit to ${perCommit
+          .map((p) => `\`${p.key}\`${p.closed ? " — marked **Completed**" : ""}`)
+          .join(", ")}.`,
+      });
+      wroteBack += 1;
+    }
   }
 
-  return Response.json({ ok: true, commits: commits.length, linked });
+  return Response.json({
+    ok: true,
+    storage: adminReady ? "admin" : "client",
+    commits: commits.length,
+    linked,
+    wroteBack,
+  });
 }
 
 // A friendly response when the URL is opened in a browser.
@@ -127,6 +175,8 @@ export function GET() {
     ok: true,
     endpoint: "github webhook",
     configured: Boolean(process.env.GITHUB_WEBHOOK_SECRET),
+    storage: adminReady ? "admin" : "client",
+    writeBack: githubAppReady,
     hint: "Point your GitHub App / repo webhook (push events) at this URL.",
   });
 }
