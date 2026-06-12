@@ -13,8 +13,10 @@ import {
 
 import { cn } from "@/lib/utils";
 import { statusStyles, type DashboardProject } from "@/lib/dashboard-data";
+import type { GeneratedTaskDraft } from "@/lib/data";
 import { useDashboard } from "@/components/dashboard/provider";
 import { DocumentDialog } from "@/components/dashboard/document-dialog";
+import { TaskReviewDialog } from "@/components/dashboard/task-review-dialog";
 
 type Tab = "overview" | "commits";
 
@@ -29,6 +31,8 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
   } = useDashboard();
   const [tab, setTab] = useState<Tab>("overview");
   const [docsOpen, setDocsOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [drafts, setDrafts] = useState<GeneratedTaskDraft[]>([]);
 
   const pm = pmOf(project.id);
   const members = membersOf(project.id);
@@ -270,12 +274,24 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
       </div>
 
       {canManageProject(project) && (
-        <DocumentDialog
-          project={project}
-          uploadedBy={currentUser.name}
-          open={docsOpen}
-          onOpenChange={setDocsOpen}
-        />
+        <>
+          <DocumentDialog
+            project={project}
+            uploadedBy={currentUser.name}
+            open={docsOpen}
+            onOpenChange={setDocsOpen}
+            onTasksGenerated={(generated) => {
+              setDrafts(generated);
+              setReviewOpen(true);
+            }}
+          />
+          <TaskReviewDialog
+            project={project}
+            drafts={drafts}
+            open={reviewOpen}
+            onOpenChange={setReviewOpen}
+          />
+        </>
       )}
     </div>
   );

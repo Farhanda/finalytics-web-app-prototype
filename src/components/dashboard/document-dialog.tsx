@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { GeneratedTaskDraft } from "@/lib/data";
 import type { DashboardProject } from "@/lib/dashboard-data";
 
 // Lightweight view of a document as returned by GET /api/projects/[id]/document.
@@ -49,16 +50,20 @@ export function DocumentDialog({
   uploadedBy,
   open,
   onOpenChange,
+  onTasksGenerated,
 }: {
   project: DashboardProject;
   uploadedBy: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // Called with the AI drafts so the parent can open the review dialog.
+  onTasksGenerated: (drafts: GeneratedTaskDraft[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [docs, setDocs] = useState<DocSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   const endpoint = `/api/projects/${project.id}/document`;
 
@@ -117,6 +122,43 @@ export function DocumentDialog({
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function handleGenerate(documentId: string) {
+    setGeneratingId(documentId);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/generate-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        toast.error("Task generation failed", {
+          description: data?.error ?? `Server responded ${res.status}.`,
+        });
+        return;
+      }
+
+      const drafts: GeneratedTaskDraft[] = data.tasks ?? [];
+      if (drafts.length === 0) {
+        toast.info("No tasks generated", {
+          description: "The document didn't yield any tasks.",
+        });
+        return;
+      }
+
+      // Hand the drafts to the parent and close so the review dialog can open.
+      onOpenChange(false);
+      onTasksGenerated(drafts);
+    } catch {
+      toast.error("Task generation failed", {
+        description: "Could not reach the server. Is the app running?",
+      });
+    } finally {
+      setGeneratingId(null);
     }
   }
 
@@ -195,17 +237,31 @@ export function DocumentDialog({
                       <span className="truncate">{d.uploadedBy}</span>
                       <span>·</span>
                       <span className="shrink-0">{formatWhen(d.uploadedAt)}</span>
+                      {d.taskGenStatus === "done" && (
+                        <>
+                          <span>·</span>
+                          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-700">
+                            <Sparkles className="size-3" /> Tasks ready
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
-                  {d.taskGenStatus === "done" ? (
-                    <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                      <Sparkles className="size-3" /> Tasks ready
-                    </span>
-                  ) : (
-                    <span className="mt-0.5 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Awaiting AI
-                    </span>
-                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-0.5 shrink-0"
+                    disabled={generatingId !== null}
+                    onClick={() => handleGenerate(d.id)}
+                  >
+                    {generatingId === d.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="size-3.5" />
+                    )}
+                    Generate tasks
+                  </Button>
                 </li>
               ))}
             </ul>

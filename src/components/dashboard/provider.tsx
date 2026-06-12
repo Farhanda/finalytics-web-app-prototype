@@ -16,7 +16,12 @@ import {
   query,
 } from "firebase/firestore";
 
-import { type Priority, type Task, type TaskStatus } from "@/lib/data";
+import {
+  type Priority,
+  type Task,
+  type TaskCategory,
+  type TaskStatus,
+} from "@/lib/data";
 import {
   memberTints,
   projectTints,
@@ -96,6 +101,16 @@ export type TaskInput = {
   dueDate: string; // yyyy-mm-dd
   priority: Priority;
   status: TaskStatus;
+};
+
+// An AI-drafted task the PM approved in the review panel (Tahap 2). Assignee may
+// be empty (assign later); status/dueDate default to Pending / none.
+export type GeneratedTaskInput = {
+  name: string;
+  projectId: string;
+  assigneeId: string; // "" = unassigned
+  priority: Priority;
+  category?: TaskCategory;
 };
 
 export type ProjectInput = {
@@ -183,6 +198,7 @@ type Ctx = {
   updateProject: (id: string, partial: Partial<ProjectInput>) => void;
   addPerson: (input: PersonInput) => void;
   addTask: (input: TaskInput) => void;
+  addGeneratedTasks: (inputs: GeneratedTaskInput[]) => Promise<void>;
   updateTask: (id: string, input: TaskInput) => void;
   deleteTask: (id: string) => void;
   toggleTask: (id: string) => void;
@@ -526,6 +542,56 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [tasks, team, currentUser, currentUserId, role, logActivity]
   );
 
+  // Commit a batch of AI-drafted tasks the PM approved (Tahap 2). Keys are
+  // assigned sequentially from one snapshot so a loop can't collide on the same
+  // AUT-N (unlike calling addTask repeatedly). Unassigned drafts get a neutral
+  // placeholder assignee and an empty assigneeId so they can be assigned later.
+  const addGeneratedTasks = useCallback(
+    async (inputs: GeneratedTaskInput[]) => {
+      if (inputs.length === 0) return;
+      const now = new Date();
+      let n = tasks.reduce((m, t) => {
+        const v = Number(/^AUT-(\d+)$/.exec(t.key ?? "")?.[1]);
+        return Number.isFinite(v) && v > m ? v : m;
+      }, 0);
+
+      for (const input of inputs) {
+        n += 1;
+        const member = team.find((m) => m.id === input.assigneeId);
+        const data: Omit<Task, "id"> = {
+          key: `AUT-${n}`,
+          name: input.name.trim(),
+          createdDate: formatDate(now),
+          createdTime: formatTime(now),
+          dueDate: "No due date",
+          commits: [],
+          projectId: input.projectId,
+          assigneeId: member?.id ?? "",
+          assignee: member
+            ? { name: member.name, initials: member.initials, tint: member.tint }
+            : { name: "Unassigned", initials: "—", tint: "bg-muted text-muted-foreground" },
+          createdById: currentUserId,
+          memberGenerated: false,
+          aiGenerated: true,
+          ...(input.category ? { category: input.category } : {}),
+          status: "Pending",
+          priority: input.priority,
+          done: false,
+        };
+        await createTask(data);
+      }
+
+      logActivity({
+        actor: currentUser.name,
+        initials: currentUser.initials,
+        tint: currentUser.tint,
+        action: "generated",
+        target: `${inputs.length} task${inputs.length === 1 ? "" : "s"} with AI`,
+      });
+    },
+    [tasks, team, currentUser, currentUserId, logActivity]
+  );
+
   const updateTask = useCallback(
     (id: string, input: TaskInput) => {
       const member = team.find((m) => m.id === input.assigneeId) ?? team[0];
@@ -695,6 +761,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       updateProject,
       addPerson,
       addTask,
+      addGeneratedTasks,
       updateTask,
       deleteTask,
       toggleTask,
@@ -738,6 +805,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       updateProject,
       addPerson,
       addTask,
+      addGeneratedTasks,
       updateTask,
       deleteTask,
       toggleTask,

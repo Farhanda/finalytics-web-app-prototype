@@ -25,6 +25,7 @@ import {
 import { db } from "./firebase";
 import {
   tasks as seedTasks,
+  type DocTaskGenStatus,
   type LinkedCommit,
   type ProjectDocument,
   type Task,
@@ -174,6 +175,11 @@ export async function listDocumentsByProject(
   return fromSnap<ProjectDocument>(snap).sort(
     (a, b) => b.uploadedAt - a.uploadedAt
   );
+}
+
+// Flip a document's AI task-generation status (Tahap 2). Client-SDK path.
+export function setDocumentTaskGenStatus(id: string, status: DocTaskGenStatus) {
+  return updateDoc(doc(documentsCol, id), { taskGenStatus: status });
 }
 
 export async function logActivityDoc(

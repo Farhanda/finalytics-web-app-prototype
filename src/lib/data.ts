@@ -4,6 +4,24 @@
 export type Priority = "High" | "Medium" | "Low";
 export type TaskStatus = "In-progress" | "Pending" | "Completed";
 
+// Discipline buckets the AI sorts generated tasks into (Tahap 2).
+export type TaskCategory =
+  | "Frontend"
+  | "Backend"
+  | "Design"
+  | "QA"
+  | "DevOps"
+  | "Research"
+  | "Other";
+
+// A task proposal returned by the AI before a PM reviews and assigns it.
+export type GeneratedTaskDraft = {
+  name: string;
+  category: TaskCategory;
+  priority: Priority;
+  description: string;
+};
+
 // A git commit linked to a task. Reported by the autom8 CLI when Claude (or a
 // developer) works on a task — the full message body + timestamp are kept so the
 // daily report can describe what was done and when.
@@ -37,6 +55,10 @@ export type Task = {
   // (PMs/Admins assign work; member-generated tasks are flagged in the UI).
   createdById: string;
   memberGenerated: boolean;
+  // True when the task was drafted by AI from an uploaded document (Tahap 2).
+  aiGenerated?: boolean;
+  // Discipline bucket assigned by the AI (FE/BE/etc.) — optional, for grouping.
+  category?: TaskCategory;
   status: TaskStatus;
   priority: Priority;
   done: boolean;

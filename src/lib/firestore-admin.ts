@@ -4,7 +4,12 @@
 import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb } from "./firebase-admin";
-import type { LinkedCommit, ProjectDocument, Task } from "./data";
+import type {
+  DocTaskGenStatus,
+  LinkedCommit,
+  ProjectDocument,
+  Task,
+} from "./data";
 import type { Activity, DashboardProject } from "./dashboard-data";
 import type { TaskUpdateInput, TaskUpdateResult } from "./firestore";
 
@@ -74,6 +79,14 @@ export async function listDocumentsByProjectAdmin(
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ProjectDocument)
     .sort((a, b) => b.uploadedAt - a.uploadedAt);
+}
+
+export async function setDocumentTaskGenStatusAdmin(
+  id: string,
+  status: DocTaskGenStatus
+): Promise<void> {
+  if (!adminDb) return;
+  await adminDb.collection("documents").doc(id).update({ taskGenStatus: status });
 }
 
 export async function logActivityAdmin(
