@@ -242,6 +242,31 @@ export async function listProjectCommits(
   return fromSnap<ProjectCommit>(snap).sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
+// ---------------------------------------------------------------------------
+// Daily report queries (Tahap 4). Client-SDK path. Single-field range filters
+// use the automatic index — no composite index needed.
+// ---------------------------------------------------------------------------
+
+export async function listProjects(): Promise<DashboardProject[]> {
+  return fromSnap<DashboardProject>(await getDocs(projectsCol));
+}
+
+export async function listActivitiesSince(since: number): Promise<Activity[]> {
+  const snap = await getDocs(
+    query(activitiesCol, where("createdAt", ">=", since))
+  );
+  return fromSnap<Activity>(snap);
+}
+
+export async function listProjectCommitsSince(
+  since: number
+): Promise<ProjectCommit[]> {
+  const snap = await getDocs(
+    query(projectCommitsCol, where("receivedAt", ">=", since))
+  );
+  return fromSnap<ProjectCommit>(snap);
+}
+
 export async function logActivityDoc(
   data: Omit<Activity, "id" | "createdAt" | "time"> & { time?: string }
 ): Promise<string> {

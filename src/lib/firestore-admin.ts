@@ -160,6 +160,36 @@ export async function listProjectCommitsAdmin(
     .sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
+// --- Daily report queries (Tahap 4). Admin-SDK path. ---
+
+export async function listProjectsAdmin(): Promise<DashboardProject[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb.collection("projects").get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as DashboardProject);
+}
+
+export async function listActivitiesSinceAdmin(
+  since: number
+): Promise<Activity[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb
+    .collection("activities")
+    .where("createdAt", ">=", since)
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Activity);
+}
+
+export async function listProjectCommitsSinceAdmin(
+  since: number
+): Promise<ProjectCommit[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb
+    .collection("projectCommits")
+    .where("receivedAt", ">=", since)
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ProjectCommit);
+}
+
 export async function logActivityAdmin(
   data: Omit<Activity, "id" | "createdAt" | "time"> & { time?: string }
 ): Promise<void> {
