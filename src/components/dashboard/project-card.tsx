@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   CalendarClock,
   ExternalLink,
+  FileText,
   GitCommitHorizontal,
   Settings2,
 } from "lucide-react";
@@ -13,13 +14,21 @@ import {
 import { cn } from "@/lib/utils";
 import { statusStyles, type DashboardProject } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
+import { DocumentDialog } from "@/components/dashboard/document-dialog";
 
 type Tab = "overview" | "commits";
 
 export function ProjectCard({ project }: { project: DashboardProject }) {
-  const { pmOf, membersOf, canManageProject, openEditProject, visibleTasks } =
-    useDashboard();
+  const {
+    pmOf,
+    membersOf,
+    canManageProject,
+    openEditProject,
+    visibleTasks,
+    currentUser,
+  } = useDashboard();
   const [tab, setTab] = useState<Tab>("overview");
+  const [docsOpen, setDocsOpen] = useState(false);
 
   const pm = pmOf(project.id);
   const members = membersOf(project.id);
@@ -233,13 +242,22 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
         </span>
         <div className="flex items-center gap-2">
           {canManageProject(project) && (
-            <button
-              onClick={() => openEditProject(project)}
-              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
-            >
-              <Settings2 className="size-3.5" />
-              Manage
-            </button>
+            <>
+              <button
+                onClick={() => setDocsOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <FileText className="size-3.5" />
+                Docs
+              </button>
+              <button
+                onClick={() => openEditProject(project)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <Settings2 className="size-3.5" />
+                Manage
+              </button>
+            </>
           )}
           <Link
             href={`/dashboard/tasks?q=${encodeURIComponent(project.name)}`}
@@ -250,6 +268,15 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
           </Link>
         </div>
       </div>
+
+      {canManageProject(project) && (
+        <DocumentDialog
+          project={project}
+          uploadedBy={currentUser.name}
+          open={docsOpen}
+          onOpenChange={setDocsOpen}
+        />
+      )}
     </div>
   );
 }

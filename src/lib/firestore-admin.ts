@@ -4,8 +4,8 @@
 import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb } from "./firebase-admin";
-import type { LinkedCommit, Task } from "./data";
-import type { Activity } from "./dashboard-data";
+import type { LinkedCommit, ProjectDocument, Task } from "./data";
+import type { Activity, DashboardProject } from "./dashboard-data";
 import type { TaskUpdateInput, TaskUpdateResult } from "./firestore";
 
 export async function updateTaskByKeyAdmin(
@@ -45,6 +45,35 @@ export async function listTasksAdmin(): Promise<Task[]> {
   if (!adminDb) return [];
   const snap = await adminDb.collection("tasks").get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task);
+}
+
+export async function getProjectAdmin(
+  id: string
+): Promise<DashboardProject | null> {
+  if (!adminDb) return null;
+  const snap = await adminDb.collection("projects").doc(id).get();
+  return snap.exists ? ({ id: snap.id, ...snap.data() } as DashboardProject) : null;
+}
+
+export async function createDocumentRecordAdmin(
+  data: Omit<ProjectDocument, "id">
+): Promise<string | null> {
+  if (!adminDb) return null;
+  const ref = await adminDb.collection("documents").add(data);
+  return ref.id;
+}
+
+export async function listDocumentsByProjectAdmin(
+  projectId: string
+): Promise<ProjectDocument[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb
+    .collection("documents")
+    .where("projectId", "==", projectId)
+    .get();
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ProjectDocument)
+    .sort((a, b) => b.uploadedAt - a.uploadedAt);
 }
 
 export async function logActivityAdmin(

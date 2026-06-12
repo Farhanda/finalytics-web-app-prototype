@@ -11,6 +11,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   query,
@@ -25,6 +26,7 @@ import { db } from "./firebase";
 import {
   tasks as seedTasks,
   type LinkedCommit,
+  type ProjectDocument,
   type Task,
   type TaskStatus,
 } from "./data";
@@ -41,6 +43,7 @@ export const usersCol = collection(db, "users");
 export const projectsCol = collection(db, "projects");
 export const tasksCol = collection(db, "tasks");
 export const activitiesCol = collection(db, "activities");
+export const documentsCol = collection(db, "documents");
 
 // Map a snapshot to a typed array, folding the doc id into each entity.
 export function fromSnap<T>(snap: QuerySnapshot): T[] {
@@ -143,6 +146,34 @@ export async function updateTaskByKey(
 // List tasks for the API (client-SDK path).
 export async function listTasks(): Promise<Task[]> {
   return fromSnap<Task>(await getDocs(tasksCol));
+}
+
+// Fetch a single project by its doc id (client-SDK path). Used by the document
+// upload route to confirm the target project exists before storing anything.
+export async function getProject(id: string): Promise<DashboardProject | null> {
+  const snap = await getDoc(doc(projectsCol, id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as DashboardProject) : null;
+}
+
+// Store an uploaded project document (metadata + extracted text). Client-SDK path.
+export async function createDocumentRecord(
+  data: Omit<ProjectDocument, "id">
+): Promise<string> {
+  const ref = await addDoc(documentsCol, data);
+  return ref.id;
+}
+
+// List a project's uploaded documents, newest first. Client-SDK path. Filtered by
+// equality only (no orderBy) so no composite index is required — sorted in memory.
+export async function listDocumentsByProject(
+  projectId: string
+): Promise<ProjectDocument[]> {
+  const snap = await getDocs(
+    query(documentsCol, where("projectId", "==", projectId))
+  );
+  return fromSnap<ProjectDocument>(snap).sort(
+    (a, b) => b.uploadedAt - a.uploadedAt
+  );
 }
 
 export async function logActivityDoc(

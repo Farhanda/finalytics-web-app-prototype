@@ -30,3 +30,7 @@ if (adminReady) {
 }
 
 export const adminDb: Firestore | null = app ? getFirestore(app) : null;
+
+// The initialized Admin app (or null) — exported so the Storage helper can reach
+// the same credentials without re-initializing.
+export const adminApp: App | null = app ?? null;

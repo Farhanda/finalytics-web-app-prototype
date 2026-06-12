@@ -157,6 +157,29 @@ export const tasks: Task[] = [
   },
 ];
 
+// A project brief (pdf/docx) uploaded by a PM. The extracted plain text is kept
+// inline so the AI step (Tahap 2) can turn it into draft tasks without
+// re-downloading the binary. The raw file lives in Firebase Storage when that is
+// configured; otherwise `storagePath` is null and only the text is retained.
+export type DocTaskGenStatus = "pending" | "generating" | "done" | "error";
+
+export type ProjectDocument = {
+  id: string;
+  projectId: string;
+  fileName: string;
+  mimeType: string;
+  size: number; // bytes
+  // Path inside the Storage bucket, or null when Storage isn't configured.
+  storagePath: string | null;
+  // Extracted plain text (capped — see MAX_DOC_TEXT in the upload route).
+  text: string;
+  textTruncated: boolean;
+  uploadedBy: string;
+  uploadedAt: number; // ms epoch
+  // Flipped by Tahap 2 once Claude has generated tasks from this document.
+  taskGenStatus: DocTaskGenStatus;
+};
+
 export type InvoiceStatus = "Completed" | "Cancel" | "Pending";
 
 export type Invoice = {
