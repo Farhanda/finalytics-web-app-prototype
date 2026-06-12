@@ -7,7 +7,9 @@ import { adminDb } from "./firebase-admin";
 import type {
   DocTaskGenStatus,
   LinkedCommit,
+  ProjectCommit,
   ProjectDocument,
+  ProjectWebhook,
   Task,
 } from "./data";
 import type { Activity, DashboardProject } from "./dashboard-data";
@@ -87,6 +89,75 @@ export async function setDocumentTaskGenStatusAdmin(
 ): Promise<void> {
   if (!adminDb) return;
   await adminDb.collection("documents").doc(id).update({ taskGenStatus: status });
+}
+
+// --- GitHub webhooks + project commits (Tahap 3). Admin-SDK path. ---
+
+export async function createWebhookAdmin(
+  data: Omit<ProjectWebhook, "id">
+): Promise<string | null> {
+  if (!adminDb) return null;
+  const ref = await adminDb.collection("webhooks").add(data);
+  return ref.id;
+}
+
+export async function listWebhooksByProjectAdmin(
+  projectId: string
+): Promise<ProjectWebhook[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb
+    .collection("webhooks")
+    .where("projectId", "==", projectId)
+    .get();
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ProjectWebhook)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getWebhookByIdAdmin(
+  id: string
+): Promise<ProjectWebhook | null> {
+  if (!adminDb) return null;
+  const snap = await adminDb.collection("webhooks").doc(id).get();
+  return snap.exists ? ({ id: snap.id, ...snap.data() } as ProjectWebhook) : null;
+}
+
+export async function deleteWebhookAdmin(id: string): Promise<void> {
+  if (!adminDb) return;
+  await adminDb.collection("webhooks").doc(id).delete();
+}
+
+export async function recordWebhookDeliveryAdmin(
+  id: string,
+  count: number
+): Promise<void> {
+  if (!adminDb) return;
+  await adminDb
+    .collection("webhooks")
+    .doc(id)
+    .update({ deliveries: FieldValue.increment(count), lastDeliveryAt: Date.now() });
+}
+
+export async function addProjectCommitsAdmin(
+  commits: Omit<ProjectCommit, "id">[]
+): Promise<void> {
+  if (!adminDb) return;
+  const batch = adminDb.batch();
+  for (const c of commits) batch.set(adminDb.collection("projectCommits").doc(), c);
+  await batch.commit();
+}
+
+export async function listProjectCommitsAdmin(
+  projectId: string
+): Promise<ProjectCommit[]> {
+  if (!adminDb) return [];
+  const snap = await adminDb
+    .collection("projectCommits")
+    .where("projectId", "==", projectId)
+    .get();
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ProjectCommit)
+    .sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
 export async function logActivityAdmin(

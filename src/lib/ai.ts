@@ -8,21 +8,13 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import type { GeneratedTaskDraft, TaskCategory } from "./data";
+import { TASK_CATEGORIES, type GeneratedTaskDraft } from "./data";
 
 export const aiReady = Boolean(process.env.ANTHROPIC_API_KEY);
 
 const MODEL = "claude-opus-4-8";
 
-const CATEGORIES: TaskCategory[] = [
-  "Frontend",
-  "Backend",
-  "Design",
-  "QA",
-  "DevOps",
-  "Research",
-  "Other",
-];
+const CATEGORIES = TASK_CATEGORIES;
 
 // Structured-outputs JSON schema. Note the constraints structured outputs allow:
 // enums are fine; every object needs additionalProperties:false; no min/max.

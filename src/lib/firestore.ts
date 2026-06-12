@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   query,
   setDoc,
@@ -27,7 +28,9 @@ import {
   tasks as seedTasks,
   type DocTaskGenStatus,
   type LinkedCommit,
+  type ProjectCommit,
   type ProjectDocument,
+  type ProjectWebhook,
   type Task,
   type TaskStatus,
 } from "./data";
@@ -45,6 +48,8 @@ export const projectsCol = collection(db, "projects");
 export const tasksCol = collection(db, "tasks");
 export const activitiesCol = collection(db, "activities");
 export const documentsCol = collection(db, "documents");
+export const webhooksCol = collection(db, "webhooks");
+export const projectCommitsCol = collection(db, "projectCommits");
 
 // Map a snapshot to a typed array, folding the doc id into each entity.
 export function fromSnap<T>(snap: QuerySnapshot): T[] {
@@ -180,6 +185,61 @@ export async function listDocumentsByProject(
 // Flip a document's AI task-generation status (Tahap 2). Client-SDK path.
 export function setDocumentTaskGenStatus(id: string, status: DocTaskGenStatus) {
   return updateDoc(doc(documentsCol, id), { taskGenStatus: status });
+}
+
+// ---------------------------------------------------------------------------
+// GitHub webhooks + project commits (Tahap 3). Client-SDK path.
+// ---------------------------------------------------------------------------
+
+export async function createWebhook(
+  data: Omit<ProjectWebhook, "id">
+): Promise<string> {
+  const ref = await addDoc(webhooksCol, data);
+  return ref.id;
+}
+
+export async function listWebhooksByProject(
+  projectId: string
+): Promise<ProjectWebhook[]> {
+  const snap = await getDocs(
+    query(webhooksCol, where("projectId", "==", projectId))
+  );
+  return fromSnap<ProjectWebhook>(snap).sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getWebhookById(
+  id: string
+): Promise<ProjectWebhook | null> {
+  const snap = await getDoc(doc(webhooksCol, id));
+  return snap.exists()
+    ? ({ id: snap.id, ...snap.data() } as ProjectWebhook)
+    : null;
+}
+
+export function deleteWebhook(id: string) {
+  return deleteDoc(doc(webhooksCol, id));
+}
+
+export function recordWebhookDelivery(id: string, count: number) {
+  return updateDoc(doc(webhooksCol, id), {
+    deliveries: increment(count),
+    lastDeliveryAt: Date.now(),
+  });
+}
+
+export async function addProjectCommits(
+  commits: Omit<ProjectCommit, "id">[]
+): Promise<void> {
+  await Promise.all(commits.map((c) => addDoc(projectCommitsCol, c)));
+}
+
+export async function listProjectCommits(
+  projectId: string
+): Promise<ProjectCommit[]> {
+  const snap = await getDocs(
+    query(projectCommitsCol, where("projectId", "==", projectId))
+  );
+  return fromSnap<ProjectCommit>(snap).sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
 export async function logActivityDoc(

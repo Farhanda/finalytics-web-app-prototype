@@ -4,7 +4,8 @@
 export type Priority = "High" | "Medium" | "Low";
 export type TaskStatus = "In-progress" | "Pending" | "Completed";
 
-// Discipline buckets the AI sorts generated tasks into (Tahap 2).
+// Discipline buckets the AI sorts generated tasks into (Tahap 2) and that
+// per-division webhooks map commits to (Tahap 3).
 export type TaskCategory =
   | "Frontend"
   | "Backend"
@@ -13,6 +14,16 @@ export type TaskCategory =
   | "DevOps"
   | "Research"
   | "Other";
+
+export const TASK_CATEGORIES: TaskCategory[] = [
+  "Frontend",
+  "Backend",
+  "Design",
+  "QA",
+  "DevOps",
+  "Research",
+  "Other",
+];
 
 // A task proposal returned by the AI before a PM reviews and assigns it.
 export type GeneratedTaskDraft = {
@@ -200,6 +211,37 @@ export type ProjectDocument = {
   uploadedAt: number; // ms epoch
   // Flipped by Tahap 2 once Claude has generated tasks from this document.
   taskGenStatus: DocTaskGenStatus;
+};
+
+// A per-division GitHub webhook on a project (Tahap 3). Each division that has a
+// repo on GitHub gets its own webhook (its own URL + secret); commits it
+// delivers are tagged with that division so they land in the right bucket.
+export type ProjectWebhook = {
+  id: string;
+  projectId: string;
+  division: TaskCategory;
+  // Optional "owner/repo" — when set, deliveries from other repos are rejected.
+  repoFullName?: string;
+  // HMAC secret used to verify GitHub's X-Hub-Signature-256. Server-side only.
+  secret: string;
+  createdAt: number;
+  deliveries: number;
+  lastDeliveryAt?: number;
+};
+
+// A commit read from a project's GitHub webhook (Tahap 3). Stored at the project
+// level (not linked to a single task) and tagged with the division it came from.
+export type ProjectCommit = {
+  id: string;
+  projectId: string;
+  division: TaskCategory;
+  sha: string;
+  message: string; // subject (first line)
+  body?: string; // remaining commit body
+  url: string;
+  author: string;
+  timestamp?: string; // ISO 8601 commit time
+  receivedAt: number; // ms epoch when the webhook delivered it
 };
 
 export type InvoiceStatus = "Completed" | "Cancel" | "Pending";

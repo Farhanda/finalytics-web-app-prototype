@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -9,16 +9,54 @@ import {
   FileText,
   GitCommitHorizontal,
   Settings2,
+  Webhook,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { statusStyles, type DashboardProject } from "@/lib/dashboard-data";
-import type { GeneratedTaskDraft } from "@/lib/data";
+import type { GeneratedTaskDraft, TaskCategory } from "@/lib/data";
 import { useDashboard } from "@/components/dashboard/provider";
 import { DocumentDialog } from "@/components/dashboard/document-dialog";
 import { TaskReviewDialog } from "@/components/dashboard/task-review-dialog";
+import { WebhookDialog } from "@/components/dashboard/webhook-dialog";
 
 type Tab = "overview" | "commits";
+
+// A project-level commit as returned by GET /api/projects/[id]/commits.
+type FeedCommit = {
+  id: string;
+  division: TaskCategory;
+  sha: string;
+  message: string;
+  url: string;
+  author: string;
+  timestamp: string;
+  receivedAt: number;
+};
+
+// Unified row for the Commits tab: from a per-division webhook or a linked task.
+type CommitRow = {
+  key: string;
+  sha: string;
+  message: string;
+  url: string;
+  author: string;
+  timestamp: string;
+  sortAt: number;
+  tag:
+    | { kind: "division"; value: TaskCategory }
+    | { kind: "task"; value: string; title: string };
+};
+
+const divisionTint: Record<TaskCategory, string> = {
+  Frontend: "bg-sky-100 text-sky-700",
+  Backend: "bg-violet-100 text-violet-700",
+  Design: "bg-rose-100 text-rose-700",
+  QA: "bg-amber-100 text-amber-700",
+  DevOps: "bg-emerald-100 text-emerald-700",
+  Research: "bg-cyan-100 text-cyan-700",
+  Other: "bg-muted text-muted-foreground",
+};
 
 export function ProjectCard({ project }: { project: DashboardProject }) {
   const {
@@ -32,22 +70,57 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
   const [tab, setTab] = useState<Tab>("overview");
   const [docsOpen, setDocsOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [webhookOpen, setWebhookOpen] = useState(false);
   const [drafts, setDrafts] = useState<GeneratedTaskDraft[]>([]);
+  const [feedCommits, setFeedCommits] = useState<FeedCommit[]>([]);
 
   const pm = pmOf(project.id);
   const members = membersOf(project.id);
 
-  // Aggregate every linked commit across this project's tasks (newest first).
-  const commits = visibleTasks
-    .filter((t) => t.projectId === project.id)
-    .flatMap((t) =>
-      (t.commits ?? []).map((c) => ({
-        ...c,
-        taskKey: t.key,
-        taskName: t.name,
-      }))
-    )
-    .reverse();
+  // Commits delivered by the project's per-division webhooks (Tahap 3).
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/projects/${project.id}/commits`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (active && data?.ok) setFeedCommits(data.commits ?? []);
+      })
+      .catch(() => {
+        /* best-effort */
+      });
+    return () => {
+      active = false;
+    };
+  }, [project.id, webhookOpen]);
+
+  // Merge webhook commits (tagged by division) with commits linked to this
+  // project's tasks, newest first.
+  const commits: CommitRow[] = [
+    ...feedCommits.map((c) => ({
+      key: `f-${c.id}`,
+      sha: c.sha,
+      message: c.message,
+      url: c.url,
+      author: c.author,
+      timestamp: c.timestamp,
+      sortAt: c.timestamp ? Date.parse(c.timestamp) || c.receivedAt : c.receivedAt,
+      tag: { kind: "division" as const, value: c.division },
+    })),
+    ...visibleTasks
+      .filter((t) => t.projectId === project.id)
+      .flatMap((t) =>
+        (t.commits ?? []).map((c, i) => ({
+          key: `t-${t.id}-${c.sha}-${i}`,
+          sha: c.sha,
+          message: c.message,
+          url: c.url,
+          author: c.author,
+          timestamp: c.timestamp ?? "",
+          sortAt: c.timestamp ? Date.parse(c.timestamp) || 0 : 0,
+          tag: { kind: "task" as const, value: t.key, title: t.name },
+        }))
+      ),
+  ].sort((a, b) => b.sortAt - a.sortAt);
 
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -183,18 +256,15 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
         <div className="mt-4 min-h-24">
           {commits.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              No commits yet. They appear here as Claude works the project&apos;s
-              tasks and runs{" "}
-              <span className="font-mono font-semibold text-foreground">
-                autom8 commit
-              </span>
-              .
+              No commits yet. Add a per-division{" "}
+              <span className="font-semibold text-foreground">GitHub</span>{" "}
+              webhook and commits land here automatically, tagged by division.
             </div>
           ) : (
             <ul className="max-h-64 space-y-1 overflow-y-auto">
-              {commits.map((c, i) => (
+              {commits.map((c) => (
                 <li
-                  key={`${c.sha}-${i}`}
+                  key={c.key}
                   className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50"
                 >
                   <GitCommitHorizontal className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -223,12 +293,23 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
                           </span>
                         </>
                       )}
-                      <span
-                        className="ml-auto shrink-0 font-mono font-semibold text-primary"
-                        title={c.taskName}
-                      >
-                        {c.taskKey}
-                      </span>
+                      {c.tag.kind === "division" ? (
+                        <span
+                          className={cn(
+                            "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                            divisionTint[c.tag.value]
+                          )}
+                        >
+                          {c.tag.value}
+                        </span>
+                      ) : (
+                        <span
+                          className="ml-auto shrink-0 font-mono font-semibold text-primary"
+                          title={c.tag.title}
+                        >
+                          {c.tag.value}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </li>
@@ -253,6 +334,13 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
               >
                 <FileText className="size-3.5" />
                 Docs
+              </button>
+              <button
+                onClick={() => setWebhookOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                <Webhook className="size-3.5" />
+                GitHub
               </button>
               <button
                 onClick={() => openEditProject(project)}
@@ -290,6 +378,11 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
             drafts={drafts}
             open={reviewOpen}
             onOpenChange={setReviewOpen}
+          />
+          <WebhookDialog
+            project={project}
+            open={webhookOpen}
+            onOpenChange={setWebhookOpen}
           />
         </>
       )}
