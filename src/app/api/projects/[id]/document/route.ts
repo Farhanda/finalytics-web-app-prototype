@@ -26,6 +26,7 @@ import {
 import { detectDocKind, extractText, mimeForKind } from "@/lib/doc-parse";
 import { uploadProjectDocument } from "@/lib/storage";
 import { authorize } from "@/lib/route-auth";
+import { toMillis } from "@/lib/time";
 import type { ProjectDocument } from "@/lib/data";
 
 export const runtime = "nodejs";
@@ -138,7 +139,11 @@ export async function POST(
     console.warn("[document] Storage upload failed; keeping text only.", err);
   }
 
-  const record: Omit<ProjectDocument, "id"> = {
+  // `uploadedAt` is stamped server-side (serverTimestamp) inside the create
+  // helper. We echo an approximate request-time value in the immediate response
+  // for the optimistic UI; the stored value is the authoritative server clock.
+  const uploadedAtEcho = Date.now();
+  const record: Omit<ProjectDocument, "id" | "uploadedAt"> = {
     projectId,
     fileName: file.name,
     mimeType,
@@ -147,7 +152,6 @@ export async function POST(
     text,
     textTruncated,
     uploadedBy,
-    uploadedAt: Date.now(),
     taskGenStatus: "pending",
   };
 
@@ -180,7 +184,7 @@ export async function POST(
       textLength: text.length,
       textTruncated,
       uploadedBy,
-      uploadedAt: record.uploadedAt,
+      uploadedAt: uploadedAtEcho,
       taskGenStatus: record.taskGenStatus,
     },
   });
@@ -216,7 +220,7 @@ export async function GET(
       textLength: (d.text ?? "").length,
       textTruncated: d.textTruncated,
       uploadedBy: d.uploadedBy,
-      uploadedAt: d.uploadedAt,
+      uploadedAt: toMillis(d.uploadedAt),
       taskGenStatus: d.taskGenStatus,
     })),
   });

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowUpRight, Mail, ShieldAlert, UserPlus, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,15 @@ import { useDashboard } from "@/components/dashboard/provider";
 const ACCESS_ORDER: AccessRole[] = ["Admin", "PM", "Member"];
 
 function TeamContent() {
-  const { team, tasks, role, canAddPeople, openAddPerson } = useDashboard();
+  const {
+    team,
+    tasks,
+    role,
+    currentUser,
+    canAddPeople,
+    openAddPerson,
+    updateAccessRole,
+  } = useDashboard();
   const searchParams = useSearchParams();
   const jobFilter = searchParams.get("role");
 
@@ -129,14 +138,11 @@ function TeamContent() {
                     <h3 className="truncate font-semibold text-foreground">
                       {member.name}
                     </h3>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                        accessRoleStyles[member.accessRole]
-                      )}
-                    >
-                      {member.accessRole}
-                    </span>
+                    {member.id === currentUser.id && (
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        You
+                      </span>
+                    )}
                   </div>
                   <p className="truncate text-sm text-muted-foreground">
                     {member.role}
@@ -147,6 +153,41 @@ function TeamContent() {
               <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="size-4" />
                 <span className="truncate">{member.email}</span>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Access role
+                </span>
+                {member.id === currentUser.id ? (
+                  <span
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[11px] font-semibold",
+                      accessRoleStyles[member.accessRole]
+                    )}
+                  >
+                    {member.accessRole}
+                  </span>
+                ) : (
+                  <select
+                    aria-label={`Access role for ${member.name}`}
+                    value={member.accessRole}
+                    onChange={(e) => {
+                      const next = e.target.value as AccessRole;
+                      updateAccessRole(member.id, next);
+                      toast.success("Role updated", {
+                        description: `${member.name} is now ${next}.`,
+                      });
+                    }}
+                    className="h-8 cursor-pointer rounded-lg border border-input bg-background px-2 text-xs font-semibold text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
+                  >
+                    {ACCESS_ORDER.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="mt-4 flex items-center gap-4 border-t border-border/60 pt-4 text-sm">

@@ -1,6 +1,8 @@
 // Shared sample data that powers the product mockups across the landing page.
 // Keeping it in one place keeps the "demo" story consistent everywhere.
 
+import type { Timestampish } from "./time";
+
 export type Priority = "High" | "Medium" | "Low";
 export type TaskStatus = "In-progress" | "Pending" | "Completed";
 
@@ -213,7 +215,9 @@ export type ProjectDocument = {
   text: string;
   textTruncated: boolean;
   uploadedBy: string;
-  uploadedAt: number; // ms epoch
+  // Server timestamp (serverTimestamp on write; Timestamp on read). Convert with
+  // toMillis() before sorting or returning to the client.
+  uploadedAt: Timestampish;
   // Flipped by Tahap 2 once Claude has generated tasks from this document.
   taskGenStatus: DocTaskGenStatus;
 };
@@ -229,9 +233,9 @@ export type ProjectWebhook = {
   repoFullName?: string;
   // HMAC secret used to verify GitHub's X-Hub-Signature-256. Server-side only.
   secret: string;
-  createdAt: number;
+  createdAt: Timestampish; // server timestamp — see toMillis()
   deliveries: number;
-  lastDeliveryAt?: number;
+  lastDeliveryAt?: Timestampish; // server timestamp, or absent if never delivered
 };
 
 // A commit read from a project's GitHub webhook (Tahap 3). Stored at the project
@@ -245,8 +249,8 @@ export type ProjectCommit = {
   body?: string; // remaining commit body
   url: string;
   author: string;
-  timestamp?: string; // ISO 8601 commit time
-  receivedAt: number; // ms epoch when the webhook delivered it
+  timestamp?: string; // ISO 8601 commit time (from GitHub — stays a string)
+  receivedAt: Timestampish; // server timestamp when the webhook delivered it
 };
 
 export type InvoiceStatus = "Completed" | "Cancel" | "Pending";

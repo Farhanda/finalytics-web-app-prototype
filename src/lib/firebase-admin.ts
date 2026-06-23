@@ -13,6 +13,8 @@ import { getApps, getApp, initializeApp, cert, type App } from "firebase-admin/a
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth, type Auth } from "firebase-admin/auth";
 
+import { checkEnv, formatEnvReport } from "./env";
+
 const projectId =
   process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -20,6 +22,16 @@ const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
 export const adminReady = Boolean(projectId && clientEmail && privateKey);
+
+// One-time startup audit: surface ALL missing required env vars in one place
+// (see src/lib/env.ts) instead of failing one service at a time. Server-only,
+// and quiet under the test runner.
+if (typeof window === "undefined" && !process.env.VITEST) {
+  const report = checkEnv();
+  if (!report.ready) {
+    console.warn("[env] Some required configuration is missing.\n" + formatEnvReport(report));
+  }
+}
 
 let app: App | undefined;
 if (adminReady) {

@@ -111,6 +111,20 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // --- counters --------------------------------------------------------
+    // Monotonic allocators (e.g. counters/taskKey for AUT-N keys). Any signed-in
+    // member may reserve the next key inside a transaction; updates may only
+    // INCREASE the value, so a client can't rewind it and reissue used keys.
+    match /counters/{counterId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.value is int
+        && request.resource.data.value >= 0;
+      allow update: if signedIn()
+        && request.resource.data.value is int
+        && request.resource.data.value > resource.data.value;
+    }
+
     // --- server-owned collections ---------------------------------------
     // Written exclusively by the Admin SDK (bypasses these rules). `webhooks`
     // stores HMAC secrets, so no client may ever read it. The UI reaches these

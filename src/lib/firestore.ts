@@ -16,7 +16,10 @@ import {
   increment,
   limit,
   query,
+  runTransaction,
+  serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   writeBatch,
@@ -24,6 +27,8 @@ import {
 } from "firebase/firestore";
 
 import { db } from "./firebase";
+import { toMillis } from "./time";
+import { computeTaskKeys } from "./task-keys";
 import {
   tasks as seedTasks,
   type DocTaskGenStatus,
@@ -69,6 +74,28 @@ function stripId<T extends { id: string }>(entity: T): Omit<T, "id"> {
 export async function createTask(data: Omit<Task, "id">): Promise<string> {
   const ref = await addDoc(tasksCol, data);
   return ref.id;
+}
+
+// Atomically reserve `count` sequential AUT-N task keys via a transaction on
+// counters/taskKey. Two clients creating tasks at the same moment can never mint
+// the same key (the old client-side max-scan could, because each browser only saw
+// its own snapshot). `floor` is the highest AUT-N the caller already knows about
+// from its live task list — it seeds/repairs the counter so a freshly-seeded or
+// pre-migration workspace doesn't reissue keys that already exist.
+export const taskKeyCounter = doc(db, "counters", "taskKey");
+
+export async function allocateTaskKeys(
+  count: number,
+  floor = 0
+): Promise<string[]> {
+  if (count <= 0) return [];
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(taskKeyCounter);
+    const stored = snap.exists() ? Number(snap.data().value) || 0 : 0;
+    const { keys, next } = computeTaskKeys(stored, floor, count);
+    tx.set(taskKeyCounter, { value: next });
+    return keys;
+  });
 }
 
 export function updateTaskDoc(id: string, partial: Partial<Task>) {
@@ -200,10 +227,11 @@ export async function getProject(id: string): Promise<DashboardProject | null> {
 }
 
 // Store an uploaded project document (metadata + extracted text). Client-SDK path.
+// `uploadedAt` is stamped here with the server clock, not by the caller.
 export async function createDocumentRecord(
-  data: Omit<ProjectDocument, "id">
+  data: Omit<ProjectDocument, "id" | "uploadedAt">
 ): Promise<string> {
-  const ref = await addDoc(documentsCol, data);
+  const ref = await addDoc(documentsCol, { ...data, uploadedAt: serverTimestamp() });
   return ref.id;
 }
 
@@ -216,7 +244,7 @@ export async function listDocumentsByProject(
     query(documentsCol, where("projectId", "==", projectId))
   );
   return fromSnap<ProjectDocument>(snap).sort(
-    (a, b) => b.uploadedAt - a.uploadedAt
+    (a, b) => toMillis(b.uploadedAt) - toMillis(a.uploadedAt)
   );
 }
 
@@ -230,9 +258,9 @@ export function setDocumentTaskGenStatus(id: string, status: DocTaskGenStatus) {
 // ---------------------------------------------------------------------------
 
 export async function createWebhook(
-  data: Omit<ProjectWebhook, "id">
+  data: Omit<ProjectWebhook, "id" | "createdAt">
 ): Promise<string> {
-  const ref = await addDoc(webhooksCol, data);
+  const ref = await addDoc(webhooksCol, { ...data, createdAt: serverTimestamp() });
   return ref.id;
 }
 
@@ -242,7 +270,9 @@ export async function listWebhooksByProject(
   const snap = await getDocs(
     query(webhooksCol, where("projectId", "==", projectId))
   );
-  return fromSnap<ProjectWebhook>(snap).sort((a, b) => a.createdAt - b.createdAt);
+  return fromSnap<ProjectWebhook>(snap).sort(
+    (a, b) => toMillis(a.createdAt) - toMillis(b.createdAt)
+  );
 }
 
 export async function getWebhookById(
@@ -261,14 +291,16 @@ export function deleteWebhook(id: string) {
 export function recordWebhookDelivery(id: string, count: number) {
   return updateDoc(doc(webhooksCol, id), {
     deliveries: increment(count),
-    lastDeliveryAt: Date.now(),
+    lastDeliveryAt: serverTimestamp(),
   });
 }
 
 export async function addProjectCommits(
-  commits: Omit<ProjectCommit, "id">[]
+  commits: Omit<ProjectCommit, "id" | "receivedAt">[]
 ): Promise<void> {
-  await Promise.all(commits.map((c) => addDoc(projectCommitsCol, c)));
+  await Promise.all(
+    commits.map((c) => addDoc(projectCommitsCol, { ...c, receivedAt: serverTimestamp() }))
+  );
 }
 
 export async function listProjectCommits(
@@ -277,7 +309,9 @@ export async function listProjectCommits(
   const snap = await getDocs(
     query(projectCommitsCol, where("projectId", "==", projectId))
   );
-  return fromSnap<ProjectCommit>(snap).sort((a, b) => b.receivedAt - a.receivedAt);
+  return fromSnap<ProjectCommit>(snap).sort(
+    (a, b) => toMillis(b.receivedAt) - toMillis(a.receivedAt)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -290,8 +324,10 @@ export async function listProjects(): Promise<DashboardProject[]> {
 }
 
 export async function listActivitiesSince(since: number): Promise<Activity[]> {
+  // createdAt is now a server Timestamp, so the lower bound must be a Timestamp
+  // too — a numeric bound would match nothing (Firestore compares by type).
   const snap = await getDocs(
-    query(activitiesCol, where("createdAt", ">=", since))
+    query(activitiesCol, where("createdAt", ">=", Timestamp.fromMillis(since)))
   );
   return fromSnap<Activity>(snap);
 }
@@ -300,7 +336,7 @@ export async function listProjectCommitsSince(
   since: number
 ): Promise<ProjectCommit[]> {
   const snap = await getDocs(
-    query(projectCommitsCol, where("receivedAt", ">=", since))
+    query(projectCommitsCol, where("receivedAt", ">=", Timestamp.fromMillis(since)))
   );
   return fromSnap<ProjectCommit>(snap);
 }
@@ -311,7 +347,7 @@ export async function logActivityDoc(
   const ref = await addDoc(activitiesCol, {
     ...data,
     time: data.time ?? "Just now",
-    createdAt: Date.now(),
+    createdAt: serverTimestamp(),
   });
   return ref.id;
 }
@@ -342,12 +378,14 @@ export async function seedFirestore(): Promise<void> {
   seedTasks.forEach((t) => batch.set(doc(tasksCol, t.id), stripId(t)));
 
   // Give seed activities a descending createdAt so the first entry reads as the
-  // newest, while staying far below any live Date.now() value.
+  // newest, while staying far below any live server timestamp. Written as a
+  // Timestamp (not a number) so the field's type is consistent with live writes —
+  // otherwise orderBy("createdAt") would split numbers and Timestamps apart.
   const base = 1_000_000;
   seedActivities.forEach((a, i) =>
     batch.set(doc(activitiesCol, a.id), {
       ...stripId(a),
-      createdAt: base - i,
+      createdAt: Timestamp.fromMillis(base - i),
     })
   );
 

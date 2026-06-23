@@ -10,6 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "emulators": "firebase emulators:start --only auth,firestore,storage",
     "qa": "node scripts/qa-report.mjs"
   },
   "dependencies": {

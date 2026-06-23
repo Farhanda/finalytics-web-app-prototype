@@ -45,36 +45,44 @@ Step-by-step with screenshots-worth of detail: **[PRODUCTION-SETUP.md](PRODUCTIO
 
 ## 4. Tests / QA
 ```bash
-pnpm qa            # run the unit suite + regenerate QA-STATUS.md
-pnpm test          # tests only (Vitest)
-pnpm test:watch    # watch mode
-pnpm build         # full Next.js build (also typechecks)
-pnpm lint          # ESLint
+pnpm qa               # run the unit suite + regenerate QA-STATUS.md
+pnpm test             # unit tests only (Vitest)
+pnpm test:watch       # watch mode
+pnpm emulators        # start the Firebase emulators (needs the Firebase CLI + Java)
+pnpm test:integration # emulator-backed integration tests (self-skip if no emulator)
+pnpm build            # full Next.js build (also typechecks)
+pnpm lint             # ESLint
 ```
-**58 unit tests** cover the pure logic (access control, route auth, rate limit,
-GitHub parsing/HMAC, Discord formatting, doc detection, nav). What's verified vs.
-what still needs an integration test (Firebase/GitHub/AI/Discord/UI) is mapped in
+**72 unit tests** cover the pure logic (access control, route auth, rate limit,
+GitHub parsing/HMAC, Discord formatting, doc detection, nav, env validation, and
+the atomic task-key math). An **emulator integration suite**
+(`tests/integration/`) covers Firestore round-trips, the daily-report dedupe, and
+concurrent `AUT-N` allocation — it self-skips when the emulator isn't running.
+What's verified vs. what still needs an integration test is mapped in
 **[QA-STATUS.md](QA-STATUS.md)** — regenerated on every `pnpm qa` run.
 
 ## 5. What's left to do (pick up here)
-**Blocking go-live (owner is doing #1 now):**
+**Blocking go-live (owner — needs the Firebase account, not code):**
 - [ ] Create the Firebase project, fill `.env.local`, deploy the rules (§3).
 - [ ] Enable the Google sign-in provider + authorized domains in the console.
 
-**Deferred — need live Firestore to verify (see PRODUCTION-SETUP §8):**
-- [ ] Migrate `Date.now()` writes to Firestore `serverTimestamp()`.
-- [ ] Atomic `AUT-N` task-key allocation (a `counters/taskKey` transaction).
+**Verify on a real Firebase project** (implemented in code Session 3, but the
+build/typecheck can't prove live query semantics — see PATH-TO-PRODUCTION Session 3):
+- [ ] `serverTimestamp()` writes + the daily-report window + activity ordering.
+- [ ] Atomic `AUT-N` allocation (`counters/taskKey`) under concurrent creates —
+      `pnpm emulators && pnpm test:integration` exercises this against the emulator.
 
-**Recommended follow-ups:**
-- [ ] **Role-edit UI** on the Team page so an Admin can promote/demote a
-      teammate without the Firestore console. Today "Add people"
-      (`src/components/dashboard/person-dialog.tsx`) only creates directory
-      records, and a real sign-in is always provisioned as **Member** — so
-      changing roles currently means editing `users/{uid}.accessRole` by hand.
-- [ ] Firestore **emulator** + integration tests for the CRUD/report logic (the
-      largest ⏸ group in QA-STATUS).
-- [ ] A tuned **Content-Security-Policy** (baseline security headers already in
-      `next.config.ts`).
+**Done in Session 3 (was the follow-up backlog):**
+- [x] **Role-edit UI** on the Team page (`updateAccessRole`) — Admins promote/demote
+      inline; your own role is locked to prevent a last-Admin lockout.
+- [x] Firestore **emulator** config + integration tests (`tests/integration/`).
+- [x] A tuned **Content-Security-Policy** in `next.config.ts`.
+- [x] Central **env-validation** helper (`src/lib/env.ts`).
+
+**Recommended next:**
+- [ ] Nonce-based CSP (drop `'unsafe-inline'` for scripts via middleware).
+- [ ] Extend the emulator suite to the remaining CRUD + the security rules, and add
+      a jsdom + Testing Library runner for the React components.
 - [ ] Optional integrations when ready: GitHub App, Anthropic, Discord, Vercel
       cron — all documented in `.env.example` + PRODUCTION-SETUP.
 

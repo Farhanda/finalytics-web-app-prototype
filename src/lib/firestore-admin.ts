@@ -1,9 +1,10 @@
 // Server-side Firestore writes via the Admin SDK. Mirrors the helpers in
 // ./firestore.ts (client SDK) so the task API can use whichever is configured.
 
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { adminDb } from "./firebase-admin";
+import { toMillis } from "./time";
 import type {
   DocTaskGenStatus,
   LinkedCommit,
@@ -95,10 +96,12 @@ export async function getProjectAdmin(
 }
 
 export async function createDocumentRecordAdmin(
-  data: Omit<ProjectDocument, "id">
+  data: Omit<ProjectDocument, "id" | "uploadedAt">
 ): Promise<string | null> {
   if (!adminDb) return null;
-  const ref = await adminDb.collection("documents").add(data);
+  const ref = await adminDb
+    .collection("documents")
+    .add({ ...data, uploadedAt: FieldValue.serverTimestamp() });
   return ref.id;
 }
 
@@ -112,7 +115,7 @@ export async function listDocumentsByProjectAdmin(
     .get();
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ProjectDocument)
-    .sort((a, b) => b.uploadedAt - a.uploadedAt);
+    .sort((a, b) => toMillis(b.uploadedAt) - toMillis(a.uploadedAt));
 }
 
 export async function setDocumentTaskGenStatusAdmin(
@@ -126,10 +129,12 @@ export async function setDocumentTaskGenStatusAdmin(
 // --- GitHub webhooks + project commits (Tahap 3). Admin-SDK path. ---
 
 export async function createWebhookAdmin(
-  data: Omit<ProjectWebhook, "id">
+  data: Omit<ProjectWebhook, "id" | "createdAt">
 ): Promise<string | null> {
   if (!adminDb) return null;
-  const ref = await adminDb.collection("webhooks").add(data);
+  const ref = await adminDb
+    .collection("webhooks")
+    .add({ ...data, createdAt: FieldValue.serverTimestamp() });
   return ref.id;
 }
 
@@ -143,7 +148,7 @@ export async function listWebhooksByProjectAdmin(
     .get();
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ProjectWebhook)
-    .sort((a, b) => a.createdAt - b.createdAt);
+    .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
 }
 
 export async function getWebhookByIdAdmin(
@@ -167,15 +172,22 @@ export async function recordWebhookDeliveryAdmin(
   await adminDb
     .collection("webhooks")
     .doc(id)
-    .update({ deliveries: FieldValue.increment(count), lastDeliveryAt: Date.now() });
+    .update({
+      deliveries: FieldValue.increment(count),
+      lastDeliveryAt: FieldValue.serverTimestamp(),
+    });
 }
 
 export async function addProjectCommitsAdmin(
-  commits: Omit<ProjectCommit, "id">[]
+  commits: Omit<ProjectCommit, "id" | "receivedAt">[]
 ): Promise<void> {
   if (!adminDb) return;
   const batch = adminDb.batch();
-  for (const c of commits) batch.set(adminDb.collection("projectCommits").doc(), c);
+  for (const c of commits)
+    batch.set(adminDb.collection("projectCommits").doc(), {
+      ...c,
+      receivedAt: FieldValue.serverTimestamp(),
+    });
   await batch.commit();
 }
 
@@ -189,7 +201,7 @@ export async function listProjectCommitsAdmin(
     .get();
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ProjectCommit)
-    .sort((a, b) => b.receivedAt - a.receivedAt);
+    .sort((a, b) => toMillis(b.receivedAt) - toMillis(a.receivedAt));
 }
 
 // --- Daily report queries (Tahap 4). Admin-SDK path. ---
@@ -206,7 +218,7 @@ export async function listActivitiesSinceAdmin(
   if (!adminDb) return [];
   const snap = await adminDb
     .collection("activities")
-    .where("createdAt", ">=", since)
+    .where("createdAt", ">=", Timestamp.fromMillis(since))
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Activity);
 }
@@ -217,7 +229,7 @@ export async function listProjectCommitsSinceAdmin(
   if (!adminDb) return [];
   const snap = await adminDb
     .collection("projectCommits")
-    .where("receivedAt", ">=", since)
+    .where("receivedAt", ">=", Timestamp.fromMillis(since))
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ProjectCommit);
 }
@@ -229,7 +241,7 @@ export async function logActivityAdmin(
   await adminDb.collection("activities").add({
     ...data,
     time: data.time ?? "Just now",
-    createdAt: Date.now(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 }
 

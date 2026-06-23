@@ -100,8 +100,8 @@ export async function POST(
   const parsed = parsePushCommits(payload).filter((c) => c.sha);
   if (parsed.length === 0) return Response.json({ ok: true, commits: 0 });
 
-  const now = Date.now();
-  const commits: Omit<ProjectCommit, "id">[] = parsed.map((c) => ({
+  // `receivedAt` is stamped server-side (serverTimestamp) inside the add helper.
+  const commits: Omit<ProjectCommit, "id" | "receivedAt">[] = parsed.map((c) => ({
     projectId: hook.projectId,
     division: hook.division,
     sha: c.sha,
@@ -110,7 +110,6 @@ export async function POST(
     url: c.url,
     author: c.author,
     timestamp: c.timestamp,
-    receivedAt: now,
   }));
 
   if (adminReady) await addProjectCommitsAdmin(commits);

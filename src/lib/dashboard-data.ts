@@ -11,6 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { Timestampish } from "./time";
+
 // Access roles that drive what each user can see and do across the app.
 export type AccessRole = "Admin" | "PM" | "Member";
 
@@ -198,8 +200,9 @@ export type Activity = {
   action: string;
   target: string;
   time: string;
-  // Millisecond sort key so Firestore can return the feed newest-first.
-  createdAt?: number;
+  // Server timestamp sort key so Firestore can return the feed newest-first.
+  // Written as serverTimestamp(); read back as a Timestamp (see toMillis()).
+  createdAt?: Timestampish;
 };
 
 export const seedActivities: Activity[] = [

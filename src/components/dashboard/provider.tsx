@@ -48,6 +48,7 @@ import { authedFetch } from "@/lib/auth";
 import { useAuth } from "@/components/dashboard/auth-provider";
 import {
   activitiesCol,
+  allocateTaskKeys,
   createProject,
   createTask,
   createUser,
@@ -89,13 +90,14 @@ function dueFromInput(value: string) {
   return `${String(d).padStart(2, "0")} ${MONTHS[mo - 1]}, ${y}`;
 }
 
-// Next sequential task key (AUT-1, AUT-2, …) based on the highest existing one.
-function nextTaskKey(existing: Task[]): string {
-  const max = existing.reduce((m, t) => {
+// The highest AUT-N already present in the live task list. Passed to
+// allocateTaskKeys() as a floor so the atomic counter never reissues an existing
+// key (e.g. right after seeding, before the counter has caught up).
+function maxTaskNumber(existing: Task[]): number {
+  return existing.reduce((m, t) => {
     const n = Number(/^AUT-(\d+)$/.exec(t.key ?? "")?.[1]);
     return Number.isFinite(n) && n > m ? n : m;
   }, 0);
-  return `AUT-${max + 1}`;
 }
 
 export type TaskInput = {
@@ -202,6 +204,7 @@ type Ctx = {
   addProject: (input: ProjectInput) => void;
   updateProject: (id: string, partial: Partial<ProjectInput>) => void;
   addPerson: (input: PersonInput) => void;
+  updateAccessRole: (userId: string, accessRole: AccessRole) => void;
   addTask: (input: TaskInput) => void;
   addGeneratedTasks: (inputs: GeneratedTaskInput[]) => Promise<void>;
   updateTask: (id: string, input: TaskInput) => void;
@@ -472,6 +475,33 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [team.length, currentUser, logActivity]
   );
 
+  // Change a teammate's access role (Admin only). Promotions/demotions write the
+  // single `accessRole` field — the security rules let an Admin update anyone's,
+  // while forbidding a user from changing their OWN role (anti-escalation). We
+  // also block editing your own role in the UI so the workspace can't accidentally
+  // be left without an Admin.
+  const updateAccessRole = useCallback(
+    (userId: string, accessRole: AccessRole) => {
+      if (role !== "Admin" || userId === currentUserId) return;
+      const member = team.find((m) => m.id === userId);
+      if (!member || member.accessRole === accessRole) return;
+      updateUserDoc(userId, { accessRole })
+        .then(() =>
+          logActivity({
+            actor: currentUser.name,
+            initials: currentUser.initials,
+            tint: currentUser.tint,
+            action: "changed role",
+            target: `${member.name} to ${accessRole}`,
+          })
+        )
+        .catch((err) =>
+          console.error("[firestore] updateAccessRole failed", err)
+        );
+    },
+    [role, currentUserId, team, currentUser, logActivity]
+  );
+
   // Best-effort: ask the server to open GitHub issues for freshly-created tasks.
   // The GitHub App key is server-only, so this goes through the API; the live
   // tasks listener folds the issue link back in once written. Never blocks task
@@ -564,63 +594,60 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     (input: TaskInput) => {
       const member = team.find((m) => m.id === input.assigneeId) ?? team[0];
       const now = new Date();
-      const data: Omit<Task, "id"> = {
-        key: nextTaskKey(tasks),
-        name: input.name.trim(),
-        createdDate: formatDate(now),
-        createdTime: formatTime(now),
-        dueDate: dueFromInput(input.dueDate),
-        commits: [],
-        projectId: input.projectId,
-        assigneeId: member.id,
-        assignee: {
-          name: member.name,
-          initials: member.initials,
-          tint: member.tint,
-        },
-        createdById: currentUserId,
-        memberGenerated: role === "Member",
-        status: input.status,
-        priority: input.priority,
-        done: input.status === "Completed",
-      };
-      createTask(data)
-        .then((id) => {
-          logActivity({
-            actor: currentUser.name,
-            initials: currentUser.initials,
-            tint: currentUser.tint,
-            action: "created task",
-            target: data.name,
+      allocateTaskKeys(1, maxTaskNumber(tasks))
+        .then(([key]) => {
+          const data: Omit<Task, "id"> = {
+            key,
+            name: input.name.trim(),
+            createdDate: formatDate(now),
+            createdTime: formatTime(now),
+            dueDate: dueFromInput(input.dueDate),
+            commits: [],
+            projectId: input.projectId,
+            assigneeId: member.id,
+            assignee: {
+              name: member.name,
+              initials: member.initials,
+              tint: member.tint,
+            },
+            createdById: currentUserId,
+            memberGenerated: role === "Member",
+            status: input.status,
+            priority: input.priority,
+            done: input.status === "Completed",
+          };
+          return createTask(data).then((id) => {
+            logActivity({
+              actor: currentUser.name,
+              initials: currentUser.initials,
+              tint: currentUser.tint,
+              action: "created task",
+              target: data.name,
+            });
+            requestIssues([id]);
           });
-          requestIssues([id]);
         })
-        .catch(
-          (err) => console.error("[firestore] addTask failed", err)
-        );
+        .catch((err) => console.error("[firestore] addTask failed", err));
     },
     [tasks, team, currentUser, currentUserId, role, logActivity, requestIssues]
   );
 
-  // Commit a batch of AI-drafted tasks the PM approved (Tahap 2). Keys are
-  // assigned sequentially from one snapshot so a loop can't collide on the same
-  // AUT-N (unlike calling addTask repeatedly). Unassigned drafts get a neutral
-  // placeholder assignee and an empty assigneeId so they can be assigned later.
+  // Commit a batch of AI-drafted tasks the PM approved (Tahap 2). All keys are
+  // reserved up-front in ONE atomic transaction, so the batch can't collide with
+  // itself or with another creator. Unassigned drafts get a neutral placeholder
+  // assignee and an empty assigneeId so they can be assigned later.
   const addGeneratedTasks = useCallback(
     async (inputs: GeneratedTaskInput[]) => {
       if (inputs.length === 0) return;
       const now = new Date();
-      let n = tasks.reduce((m, t) => {
-        const v = Number(/^AUT-(\d+)$/.exec(t.key ?? "")?.[1]);
-        return Number.isFinite(v) && v > m ? v : m;
-      }, 0);
+      const keys = await allocateTaskKeys(inputs.length, maxTaskNumber(tasks));
 
       const ids: string[] = [];
-      for (const input of inputs) {
-        n += 1;
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
         const member = team.find((m) => m.id === input.assigneeId);
         const data: Omit<Task, "id"> = {
-          key: `AUT-${n}`,
+          key: keys[i],
           name: input.name.trim(),
           createdDate: formatDate(now),
           createdTime: formatTime(now),
@@ -825,6 +852,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       addProject,
       updateProject,
       addPerson,
+      updateAccessRole,
       addTask,
       addGeneratedTasks,
       updateTask,
@@ -869,6 +897,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       addProject,
       updateProject,
       addPerson,
+      updateAccessRole,
       addTask,
       addGeneratedTasks,
       updateTask,

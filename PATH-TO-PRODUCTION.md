@@ -74,19 +74,26 @@ Priority order. P0 = blocker, P1 = important, P2 = polish.
 ### Phase 4 — Data integrity (P1)
 - [x] Daily report counts **distinct** completed tasks (dedupe — no double-count)
 - [x] Stop denormalized drift: propagate user renames to their tasks (`propagateAssigneeRename`)
-- [ ] ↪ DEFERRED (needs live Firestore verification): `serverTimestamp()` migration
-      — far-reaching (changes the report window + activity ordering reads). Sketch in PRODUCTION-SETUP §8.
-- [ ] ↪ DEFERRED (needs live Firestore verification): atomic `AUT-N` allocation via a
-      `counters/taskKey` transaction — avoided shipping untested code on the core
-      task-creation path. Sketch in PRODUCTION-SETUP §8.
+- [x] `serverTimestamp()` migration — all server-stamped fields (activity
+      `createdAt`, document `uploadedAt`, webhook `createdAt`/`lastDeliveryAt`,
+      commit `receivedAt`) now write `serverTimestamp()` and read back through a
+      `toMillis()` normalizer (`src/lib/time.ts`); range-query bounds and seed data
+      are `Timestamp`s so types never mix. ⚠️ Still wants live-Firestore verification
+      (typecheck/build can't prove query semantics).
+- [x] Atomic `AUT-N` allocation via a `counters/taskKey` transaction
+      (`allocateTaskKeys` in `firestore.ts`; pure key math in `task-keys.ts`,
+      unit-tested; rule added for `counters/{id}` with monotonic-increase). Both
+      create paths (manual + AI batch) use it. ⚠️ Verify against live Firestore.
 
 ### Phase 5 — Hardening & ops (P1/P2)
 - [x] Security headers (`next.config.ts` — nosniff, frame-deny, referrer, permissions, HSTS)
 - [x] `.env.example` updated with the auth vars + production notes
 - [x] Go-live runbook + smoke checklist ([PRODUCTION-SETUP.md](PRODUCTION-SETUP.md))
 - [x] Structured 401/403/429/413 JSON responses on the gated routes (no stack leakage)
-- [ ] ↪ DEFERRED: a central env-validation helper and a tuned CSP (baseline headers
-      shipped; CSP needs per-origin tuning vs Firebase/Google). Tracked in PRODUCTION-SETUP §8.
+- [x] Central env-validation helper (`src/lib/env.ts`, unit-tested) — one catalog
+      of every env var grouped by feature; logged once on server startup. Tuned CSP
+      added to `next.config.ts` (Firebase/Google origins; `'unsafe-inline'` retained
+      for Next hydration — nonce-based hardening is the remaining step).
 
 ### Phase 6 — Verification (P0)
 - [x] `pnpm build` green (18 routes, incl. `/api/auth/provision`)
@@ -180,3 +187,33 @@ Priority order. P0 = blocker, P1 = important, P2 = polish.
   excluded per request.
 - ✅ Fixed a pnpm `allowBuilds` placeholder (`esbuild`) that was blocking every
   pnpm script; `pnpm build`/`lint`/`test` all green again.
+
+### 2026-06-24 — Session 3 (deferred items + follow-ups)
+Cleared the remaining DEFERRED/follow-up backlog so the codebase matches the
+documented production target. Build + lint green; unit suite **72/72** (was 58 —
+added env + task-key coverage).
+- ✅ **Role-edit UI (Team page):** an Admin can promote/demote a teammate inline
+  (`updateAccessRole` in `provider.tsx`; selector on each card, your own row locked
+  to avoid a last-Admin lockout). No more editing `users/{uid}.accessRole` by hand.
+- ✅ **Tuned CSP:** `next.config.ts` now ships a Content-Security-Policy scoped to
+  the Firebase/Google origins the app actually uses (auth popup, Firestore listen
+  stream, Storage, account avatars). `'unsafe-inline'` kept for Next's hydration
+  scripts — nonce-based tightening is the next step.
+- ✅ **Central env validation:** `src/lib/env.ts` catalogs every env var by feature
+  (required vs optional, with a `oneOf` projectId fallback), reports what's missing,
+  and logs once on server startup. Unit-tested (`tests/env.test.ts`).
+- ✅ **Firestore emulator + integration tests:** `firebase.json` gains an
+  `emulators` block; `pnpm emulators` + `pnpm test:integration` (separate Vitest
+  config) run emulator-backed tests that **self-skip** when the emulator is down, so
+  `pnpm test` stays pure. Covered: document round-trip, daily-report dedupe, and
+  concurrent AUT-N allocation.
+- ✅ **`serverTimestamp()` migration:** see Phase 4 — all server-stamped fields
+  migrated with a `toMillis()` read normalizer (`src/lib/time.ts`), Timestamp query
+  bounds, and Timestamp seed data. ⚠️ Needs live-Firestore verification.
+- ✅ **Atomic `AUT-N` allocation:** see Phase 4 — `allocateTaskKeys` transaction on
+  `counters/taskKey` (+ rule), pure math in `task-keys.ts` (unit-tested), wired into
+  both create paths. ⚠️ Needs live-Firestore verification.
+- 🟢 **Status:** every code-side item the docs tracked is now implemented. The only
+  open work is owner-side go-live wiring (🙋 enable Google provider, set Admin SDK
+  env, deploy rules) and live verification of the two timestamp/key changes on a
+  real Firebase project.

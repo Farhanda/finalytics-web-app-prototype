@@ -79,6 +79,18 @@ const TESTED = [
     label: "Role-aware navigation + seed integrity",
     functions: ["navGroupsFor", "seed referential integrity"],
   },
+  {
+    files: ["env.test.ts"],
+    module: "src/lib/env.ts",
+    label: "Central env-var validation",
+    functions: ["checkEnv (required/optional/oneOf)", "formatEnvReport"],
+  },
+  {
+    files: ["task-keys.test.ts"],
+    module: "src/lib/task-keys.ts",
+    label: "Atomic AUT-N key arithmetic",
+    functions: ["computeTaskKeys (monotonic, floor-repair, batch)"],
+  },
 ];
 
 // --- What is intentionally NOT unit-tested here (needs a live service) ---------
@@ -94,7 +106,7 @@ const EXCLUDED = [
   },
   {
     service: "Firebase / Firestore",
-    why: "reads/writes a live database — use the Firestore emulator for integration tests",
+    why: "reads/writes a live database — now partly covered by the Firestore emulator suite (tests/integration/firestore.itest.ts → `pnpm test:integration`): document round-trip, daily-report dedupe, and concurrent AUT-N allocation. The rest still need emulator/manual QA",
     items: [
       "src/lib/firestore.ts, firestore-admin.ts (all CRUD, seeding, propagateAssigneeRename)",
       "src/lib/firebase.ts, firebase-admin.ts, storage.ts (SDK init / uploads)",
@@ -237,9 +249,11 @@ L.push("");
 L.push("## 4. How to run");
 L.push("");
 L.push("```bash");
-L.push("pnpm qa            # run the suite + regenerate this file (node scripts/qa-report.mjs)");
-L.push("pnpm test          # just the tests (Vitest)");
-L.push("pnpm test:watch    # watch mode while developing");
+L.push("pnpm qa              # run the suite + regenerate this file (node scripts/qa-report.mjs)");
+L.push("pnpm test            # just the unit tests (Vitest)");
+L.push("pnpm test:watch      # watch mode while developing");
+L.push("pnpm emulators       # start the Firebase emulators (needs the Firebase CLI + Java)");
+L.push("pnpm test:integration  # emulator-backed integration tests (self-skip if no emulator)");
 L.push("```");
 L.push("");
 L.push(
@@ -248,8 +262,9 @@ L.push(
 );
 L.push("");
 L.push(
-  "Next QA expansion (good first integration targets): the daily-report grouping " +
-    "logic, and Firestore CRUD against the local emulator."
+  "Next QA expansion: extend the emulator suite (tests/integration) to the " +
+    "remaining CRUD + the security rules (auth contexts), and add a jsdom + Testing " +
+    "Library runner for the React components."
 );
 L.push("");
 

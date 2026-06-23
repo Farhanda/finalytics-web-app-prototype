@@ -22,6 +22,7 @@ import {
 } from "@/lib/firestore-admin";
 import { generateWebhookSecret } from "@/lib/github";
 import { authorize } from "@/lib/route-auth";
+import { toMillisOrNull } from "@/lib/time";
 import { TASK_CATEGORIES, type ProjectWebhook, type TaskCategory } from "@/lib/data";
 
 export const runtime = "nodejs";
@@ -75,12 +76,12 @@ export async function POST(
 
   const repoFullName = body.repoFullName?.trim();
 
-  const record: Omit<ProjectWebhook, "id"> = {
+  // `createdAt` is stamped server-side (serverTimestamp) inside the create helper.
+  const record: Omit<ProjectWebhook, "id" | "createdAt"> = {
     projectId,
     division,
     ...(repoFullName ? { repoFullName } : {}),
     secret: generateWebhookSecret(),
-    createdAt: Date.now(),
     deliveries: 0,
   };
 
@@ -134,7 +135,7 @@ export async function GET(
       repoFullName: w.repoFullName ?? null,
       secretMasked: maskSecret(w.secret),
       deliveries: w.deliveries,
-      lastDeliveryAt: w.lastDeliveryAt ?? null,
+      lastDeliveryAt: toMillisOrNull(w.lastDeliveryAt),
       url: webhookUrl(req, w.id),
     })),
   });

@@ -6,6 +6,7 @@ import { adminReady } from "@/lib/firebase-admin";
 import { listProjectCommits } from "@/lib/firestore";
 import { listProjectCommitsAdmin } from "@/lib/firestore-admin";
 import { authorize } from "@/lib/route-auth";
+import { toMillis } from "@/lib/time";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,7 @@ export async function GET(
       url: c.url,
       author: c.author,
       timestamp: c.timestamp ?? "",
-      receivedAt: c.receivedAt,
+      receivedAt: toMillis(c.receivedAt),
     })),
   });
 }
