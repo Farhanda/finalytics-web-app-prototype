@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, GitCommitHorizontal, Sparkles } from "lucide-react";
+import { CircleDot, ExternalLink, GitCommitHorizontal, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -308,6 +308,18 @@ export function TaskDialog() {
                     {dialog.task.key}
                   </span>
                 </div>
+                {dialog.task.issueNumber && (
+                  <a
+                    href={dialog.task.issueUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
+                  >
+                    <CircleDot className="size-3.5 text-emerald-600" />
+                    <span>GitHub issue #{dialog.task.issueNumber}</span>
+                    <ExternalLink className="size-3 shrink-0 text-muted-foreground" />
+                  </a>
+                )}
                 {dialog.task.commits && dialog.task.commits.length > 0 ? (
                   <ul className="space-y-2.5">
                     {dialog.task.commits.map((c, i) => (

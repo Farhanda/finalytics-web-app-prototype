@@ -21,6 +21,7 @@ import {
   listWebhooksByProjectAdmin,
 } from "@/lib/firestore-admin";
 import { generateWebhookSecret } from "@/lib/github";
+import { authorize } from "@/lib/route-auth";
 import { TASK_CATEGORIES, type ProjectWebhook, type TaskCategory } from "@/lib/data";
 
 export const runtime = "nodejs";
@@ -42,6 +43,10 @@ export async function POST(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  // Creating a webhook (and seeing its secret) is a project-management action.
+  const auth = await authorize(req, { roles: ["Admin", "PM"] });
+  if (!auth.ok) return auth.response;
 
   const { id: projectId } = await params;
 
@@ -110,6 +115,9 @@ export async function GET(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  const auth = await authorize(req, { roles: ["Admin", "PM"] });
+  if (!auth.ok) return auth.response;
 
   const { id: projectId } = await params;
 

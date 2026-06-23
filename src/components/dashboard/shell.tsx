@@ -8,6 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { DashboardProvider, useDashboard } from "@/components/dashboard/provider";
+import { AuthProvider, useAuth } from "@/components/dashboard/auth-provider";
+import { SignIn } from "@/components/dashboard/sign-in";
 import { TaskDialog } from "@/components/dashboard/task-dialog";
 import { ProjectDialog } from "@/components/dashboard/project-dialog";
 import { PersonDialog } from "@/components/dashboard/person-dialog";
@@ -109,10 +111,38 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Decides whether to show the sign-in screen, a provisioning spinner, or the
+// app. In demo mode (auth not required) it's a passthrough.
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { authRequired, loading, user, provisioned } = useAuth();
+
+  if (!authRequired) return <>{children}</>;
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/30 text-muted-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-7 animate-spin text-primary" />
+          <p className="text-sm">Checking your session…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not signed in, or signed in but not yet provisioned (show sign-in + reason).
+  if (!user || !provisioned) return <SignIn />;
+
+  return <>{children}</>;
+}
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <DashboardProvider>
-      <ShellInner>{children}</ShellInner>
-    </DashboardProvider>
+    <AuthProvider>
+      <AuthGate>
+        <DashboardProvider>
+          <ShellInner>{children}</ShellInner>
+        </DashboardProvider>
+      </AuthGate>
+    </AuthProvider>
   );
 }

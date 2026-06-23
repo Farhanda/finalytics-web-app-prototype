@@ -11,6 +11,7 @@
 
 import { getApps, getApp, initializeApp, cert, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getAuth, type Auth } from "firebase-admin/auth";
 
 const projectId =
   process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -30,6 +31,12 @@ if (adminReady) {
 }
 
 export const adminDb: Firestore | null = app ? getFirestore(app) : null;
+
+// Firebase Auth (Admin) — used server-side to verify the ID token a signed-in
+// browser sends on privileged API routes. Null until the Admin SDK is configured;
+// when null, token verification is impossible and routes treat auth as
+// "unenforceable" (local/demo posture). Production REQUIRES the Admin SDK.
+export const adminAuth: Auth | null = app ? getAuth(app) : null;
 
 // The initialized Admin app (or null) — exported so the Storage helper can reach
 // the same credentials without re-initializing.

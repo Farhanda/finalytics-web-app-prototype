@@ -54,6 +54,38 @@ export async function listTasksAdmin(): Promise<Task[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Task);
 }
 
+export async function getTaskAdmin(id: string): Promise<Task | null> {
+  if (!adminDb) return null;
+  const snap = await adminDb.collection("tasks").doc(id).get();
+  return snap.exists ? ({ id: snap.id, ...snap.data() } as Task) : null;
+}
+
+export async function updateTaskDocAdmin(
+  id: string,
+  partial: Partial<Task>
+): Promise<void> {
+  if (!adminDb) return;
+  await adminDb.collection("tasks").doc(id).update(partial);
+}
+
+// Find the task linked to a GitHub issue (repo + number). Queries by issueNumber
+// only (automatic single-field index) and matches repoFullName in memory — no
+// composite index needed. Mirrors findTaskByIssue in firestore.ts.
+export async function findTaskByIssueAdmin(
+  repoFullName: string,
+  issueNumber: number
+): Promise<Task | null> {
+  if (!adminDb) return null;
+  const snap = await adminDb
+    .collection("tasks")
+    .where("issueNumber", "==", issueNumber)
+    .get();
+  const match = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Task)
+    .find((t) => t.repoFullName === repoFullName);
+  return match ?? null;
+}
+
 export async function getProjectAdmin(
   id: string
 ): Promise<DashboardProject | null> {

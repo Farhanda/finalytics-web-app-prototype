@@ -1,78 +1,127 @@
 rules_version = '2';
 
-// ===========================================================================
-// DEVELOPMENT RULES (current phase: no Firebase Auth)
-// ===========================================================================
-// Without Auth there is no `request.auth`, so rules cannot tell who the user is
-// and therefore cannot enforce Admin/PM/Member access. Role visibility is
-// enforced CLIENT-SIDE in src/lib/access.ts for now.
+// autom8 Firestore Security Rules — PRODUCTION
+// =============================================================================
+// Replaces the old "allow if true" dev rules. Security model
+// (see PATH-TO-PRODUCTION.md):
+//   • NOTHING is readable or writable without a signed-in Firebase Auth user.
+//     This alone closes the "open to the anonymous internet" hole.
+//   • A user's role lives in their own profile doc at users/{uid}.accessRole and
+//     is read back via get(); a user CANNOT change their own accessRole here
+//     (no self-escalation) — only an Admin can.
+//   • Reads of the shared workspace (users / projects / tasks / activities) are
+//     allowed to ANY authenticated member. This keeps the app's whole-collection
+//     realtime listeners working; cross-employee read confidentiality is
+//     intentionally out of scope for v1 (tracked as a future enhancement).
+//   • Writes are role-restricted to mirror src/lib/access.ts.
+//   • Sensitive / server-owned collections (documents, webhooks, projectCommits)
+//     are written ONLY by the Admin SDK (which bypasses rules), so all direct
+//     client access is denied. `webhooks` also holds HMAC secrets.
 //
-// These open rules match the Firestore "Test mode" you selected in the console.
-// They are fine for a local prototype but MUST be locked down before any real
-// or public deployment — anyone with the project config could read/write.
+// IMPORTANT: user profile docs MUST be keyed by the Firebase Auth uid, and the
+// relational id fields (pmId, memberIds[], assigneeId, createdById) must hold
+// those same uids. The app provisions users/{uid} on first sign-in.
 //
-// To deploy these: Firestore console → Rules → paste → Publish
-// (or `firebase deploy --only firestore:rules` with the Firebase CLI).
+// Deploy: firebase deploy --only firestore:rules
+// =============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // --- helpers ---------------------------------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function profileExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function myRole() {
+      return profileExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accessRole
+        : 'None';
+    }
+    function isAdmin() {
+      return myRole() == 'Admin';
+    }
+    // Read a project's data by id (used to resolve PM / membership for a task).
+    function project(pid) {
+      return get(/databases/$(database)/documents/projects/$(pid)).data;
+    }
+    function projectExists(pid) {
+      return exists(/databases/$(database)/documents/projects/$(pid));
+    }
+
+    // --- users -----------------------------------------------------------
+    // Any member may read the directory (needed for assignee/PM pickers).
+    // Admins manage anyone. A user may edit only their OWN profile, and may NOT
+    // change their accessRole (anti-escalation) — that stays with Admins.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (request.auth.uid == userId
+            && request.resource.data.accessRole == resource.data.accessRole);
+    }
+
+    // --- projects --------------------------------------------------------
+    match /projects/{projectId} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (myRole() == 'PM' && resource.data.pmId == request.auth.uid);
+    }
+
+    // --- tasks -----------------------------------------------------------
+    // create: Admin, the project's PM, or a member of the project.
+    // update: Admin, the project's PM, the assignee, or the creator.
+    // delete: Admin, the project's PM, or the creator.
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && projectExists(request.resource.data.projectId)
+        && (
+          isAdmin()
+          || project(request.resource.data.projectId).pmId == request.auth.uid
+          || (request.auth.uid in project(request.resource.data.projectId).memberIds)
+        );
+
+      allow update: if signedIn()
+        && (
+          isAdmin()
+          || project(resource.data.projectId).pmId == request.auth.uid
+          || resource.data.assigneeId == request.auth.uid
+          || resource.data.createdById == request.auth.uid
+        );
+
+      allow delete: if signedIn()
+        && (
+          isAdmin()
+          || project(resource.data.projectId).pmId == request.auth.uid
+          || resource.data.createdById == request.auth.uid
+        );
+    }
+
+    // --- activities ------------------------------------------------------
+    // Append-only feed: any member may read and add; only Admins may mutate.
+    match /activities/{activityId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // --- server-owned collections ---------------------------------------
+    // Written exclusively by the Admin SDK (bypasses these rules). `webhooks`
+    // stores HMAC secrets, so no client may ever read it. The UI reaches these
+    // through server API routes, never a direct client listen.
+    match /documents/{docId}         { allow read, write: if false; }
+    match /webhooks/{webhookId}       { allow read, write: if false; }
+    match /projectCommits/{commitId}  { allow read, write: if false; }
+
+    // Default deny for anything not matched above.
     match /{document=**} {
-      allow read, write: if true; // DEV ONLY — replace once Auth is added.
+      allow read, write: if false;
     }
   }
 }
-
-// ===========================================================================
-// PRODUCTION RULES (later phase: with Firebase Auth) — REFERENCE, commented out.
-// ===========================================================================
-// When you enable Email/Password + Google sign-in and store the signed-in user's
-// access role on their user doc (`users/{uid}.accessRole`), swap the block above
-// for rules that mirror src/lib/access.ts. Sketch:
-//
-// service cloud.firestore {
-//   match /databases/{database}/documents {
-//     function signedIn()  { return request.auth != null; }
-//     function me()        { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
-//     function isAdmin()   { return signedIn() && me().accessRole == 'Admin'; }
-//     function isPM()      { return signedIn() && me().accessRole == 'PM'; }
-//
-//     // Users: everyone signed in can read the directory; you edit only yourself
-//     // (admins can edit anyone).
-//     match /users/{uid} {
-//       allow read:  if signedIn();
-//       allow write: if isAdmin() || request.auth.uid == uid;
-//     }
-//
-//     // Projects: admins manage all; a PM manages projects they own; members
-//     // (and the PM) may read projects they're on.
-//     match /projects/{pid} {
-//       allow read:   if isAdmin()
-//                     || (signedIn() && resource.data.pmId == request.auth.uid)
-//                     || (signedIn() && request.auth.uid in resource.data.memberIds);
-//       allow create: if isAdmin();
-//       allow update, delete:
-//                     if isAdmin()
-//                     || (isPM() && resource.data.pmId == request.auth.uid);
-//     }
-//
-//     // Tasks: scoped to the parent project's PM/members; members may create
-//     // their own (member-generated) tasks and edit what they created.
-//     match /tasks/{tid} {
-//       function project() { return get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data; }
-//       allow read:   if isAdmin()
-//                     || (signedIn() && project().pmId == request.auth.uid)
-//                     || (signedIn() && request.auth.uid in project().memberIds);
-//       allow create: if signedIn();
-//       allow update, delete:
-//                     if isAdmin()
-//                     || (signedIn() && project().pmId == request.auth.uid)
-//                     || (signedIn() && resource.data.createdById == request.auth.uid);
-//     }
-//
-//     match /activities/{aid} {
-//       allow read:   if signedIn();
-//       allow create: if signedIn();
-//       allow update, delete: if isAdmin();
-//     }
-//   }
-// }

@@ -1,5 +1,9 @@
 allowBuilds:
   '@firebase/util': false
+  # esbuild ships its native binary via the @esbuild/<platform> optional package,
+  # so its install script just verifies that — safe to allow. Required so pnpm
+  # doesn't block scripts (build/lint/test) with ERR_PNPM_IGNORED_BUILDS.
+  esbuild: true
   msw: false
   protobufjs: false
   sharp: true

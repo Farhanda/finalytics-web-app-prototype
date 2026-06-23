@@ -74,9 +74,13 @@ async function handle(req: Request) {
       : listProjectCommitsSince(since),
   ]);
 
-  const completedTasks = activities
-    .filter((a) => a.action === "completed")
-    .map((a) => a.target);
+  // Distinct completed tasks. Dedupe by target so a task that was completed,
+  // reopened, then completed again (two "completed" activities) is counted once.
+  const completedTasks = [
+    ...new Set(
+      activities.filter((a) => a.action === "completed").map((a) => a.target)
+    ),
+  ];
 
   // Group commits by project, then by division.
   const nameById = new Map(projects.map((p) => [p.id, p.name]));

@@ -79,6 +79,27 @@ export function deleteTaskDoc(id: string) {
   return deleteDoc(doc(tasksCol, id));
 }
 
+export async function getTask(id: string): Promise<Task | null> {
+  const snap = await getDoc(doc(tasksCol, id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Task) : null;
+}
+
+// Find the task linked to a GitHub issue (repo + number). Queries by issueNumber
+// only — covered by the automatic single-field index — then matches repoFullName
+// in memory, so no composite index is required. Used by the issues webhook.
+export async function findTaskByIssue(
+  repoFullName: string,
+  issueNumber: number
+): Promise<Task | null> {
+  const snap = await getDocs(
+    query(tasksCol, where("issueNumber", "==", issueNumber))
+  );
+  const match = fromSnap<Task>(snap).find(
+    (t) => t.repoFullName === repoFullName
+  );
+  return match ?? null;
+}
+
 export async function createProject(
   data: Omit<DashboardProject, "id">
 ): Promise<string> {
@@ -102,6 +123,23 @@ export async function createUser(
 
 export function updateUserDoc(id: string, partial: Partial<TeamMember>) {
   return updateDoc(doc(usersCol, id), partial);
+}
+
+// Keep the denormalized `assignee` snapshot on a user's tasks in step with their
+// profile after a rename, so the board never shows a stale name. Bounded to the
+// user's own assigned tasks (which the security rules let them update).
+export async function propagateAssigneeRename(
+  assigneeId: string,
+  assignee: { name: string; initials: string; tint: string }
+): Promise<void> {
+  if (!assigneeId) return;
+  const snap = await getDocs(
+    query(tasksCol, where("assigneeId", "==", assigneeId))
+  );
+  if (snap.empty) return;
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => batch.update(d.ref, { assignee }));
+  await batch.commit();
 }
 
 export type TaskUpdateInput = {

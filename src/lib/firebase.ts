@@ -9,6 +9,7 @@
 
 import { getApps, getApp, initializeApp, type FirebaseOptions } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -35,3 +36,15 @@ if (!firebaseReady && typeof window !== "undefined") {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
+
+// getAuth() eagerly validates the API key and throws auth/invalid-api-key when
+// Firebase isn't configured (e.g. during a build with no env). Firestore connects
+// lazily and doesn't, so only Auth needs this guard. Null when unconfigured; the
+// auth helpers in ./auth degrade gracefully.
+export const auth: Auth | null = firebaseReady ? getAuth(app) : null;
+
+// Whether the app should REQUIRE a signed-in user. Secure-by-default: on as soon
+// as Firebase is configured. Set NEXT_PUBLIC_REQUIRE_AUTH=false to fall back to
+// the local demo identity switcher (no real sign-in) for development only.
+export const authRequired =
+  firebaseReady && process.env.NEXT_PUBLIC_REQUIRE_AUTH !== "false";

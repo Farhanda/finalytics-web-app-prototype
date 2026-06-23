@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How autom8 Works — From Project to Finished Task</title>
+<style>
+  :root {
+    --bg: #0c0f1a;
+    --bg-soft: #121626;
+    --card: #161b2e;
+    --card-border: #242b45;
+    --text: #e6e9f2;
+    --muted: #9aa3bd;
+    --accent: #6c8cff;
+    --accent-2: #38d39f;
+    --accent-3: #ffb454;
+    --pending: #8b95b5;
+    --progress: #6c8cff;
+    --completed: #38d39f;
+    --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(108,140,255,0.18), transparent 60%),
+                radial-gradient(1000px 500px at 0% 10%, rgba(56,211,159,0.12), transparent 55%),
+                var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  header.hero {
+    text-align: center;
+    padding: 80px 24px 48px;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(108,140,255,0.12);
+    border: 1px solid rgba(108,140,255,0.3);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+  header.hero h1 {
+    font-size: clamp(30px, 5vw, 48px);
+    margin: 0 0 16px;
+    line-height: 1.15;
+    background: linear-gradient(90deg, #fff, #b9c4ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header.hero p {
+    max-width: 640px;
+    margin: 0 auto;
+    color: var(--muted);
+    font-size: 18px;
+  }
+
+  /* Section */
+  section { padding: 32px 0; }
+  h2 {
+    font-size: 26px;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h2 .num {
+    flex: 0 0 auto;
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), #9a7bff);
+    box-shadow: var(--shadow);
+  }
+  .section-lead { color: var(--muted); margin: 0 0 24px; }
+
+  /* Roles */
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .role-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: var(--shadow);
+    transition: transform .2s ease, border-color .2s ease;
+  }
+  .role-card:hover { transform: translateY(-4px); border-color: var(--accent); }
+  .role-card .role-name { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+  .role-card .role-tag { font-size: 13px; color: var(--accent-2); margin-bottom: 14px; }
+  .role-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 15px; }
+  .role-card ul li { margin-bottom: 6px; }
+  .role-admin .role-name { color: var(--accent-3); }
+  .role-pm .role-name { color: var(--accent); }
+  .role-member .role-name { color: var(--accent-2); }
+
+  /* Journey diagram */
+  .journey {
+    background: var(--bg-soft);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  .lane h3 {
+    margin: 0 0 16px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-align: center;
+  }
+  .node {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    position: relative;
+    font-size: 14px;
+  }
+  .node strong { display: block; margin-bottom: 2px; }
+  .node small { color: var(--muted); }
+  .node:not(:last-child)::after {
+    content: "▼";
+    position: absolute;
+    bottom: -13px; left: 50%;
+    transform: translateX(-50%);
+    color: var(--accent);
+    font-size: 11px;
+  }
+  .lane-admin .node { border-left: 3px solid var(--accent-3); }
+  .lane-pm .node { border-left: 3px solid var(--accent); }
+  .lane-member .node { border-left: 3px solid var(--accent-2); }
+  .finale {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-top: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(56,211,159,0.14), rgba(108,140,255,0.14));
+    border: 1px solid rgba(56,211,159,0.3);
+    font-weight: 600;
+  }
+
+  /* Steps */
+  .step-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 26px 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 8px;
+  }
+  .step-card ul { padding-left: 20px; color: var(--text); }
+  .step-card ul li { margin-bottom: 8px; }
+  .step-card ul li span.k { color: var(--accent); font-weight: 600; }
+  .callout {
+    margin-top: 18px;
+    padding: 14px 18px;
+    border-left: 4px solid var(--accent-3);
+    background: rgba(255,180,84,0.08);
+    border-radius: 0 10px 10px 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .sub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
+  .sub-card {
+    background: var(--bg-soft);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .sub-card h4 { margin: 0 0 12px; font-size: 17px; }
+  .sub-card h4 .pill {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px;
+    margin-right: 8px; vertical-align: middle;
+  }
+  .pill-hand { background: rgba(108,140,255,0.18); color: var(--accent); }
+  .pill-ai { background: rgba(56,211,159,0.18); color: var(--accent-2); }
+  .sub-card ol { padding-left: 18px; margin: 0; color: var(--muted); font-size: 14px; }
+  .sub-card ol li { margin-bottom: 6px; }
+  .sub-card ul { padding-left: 18px; margin: 0; color: var(--muted); font-size: 14px; }
+
+  /* Status chips */
+  .statuses { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 999px;
+    font-size: 14px; font-weight: 600;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-pending { background: var(--pending); }
+  .dot-progress { background: var(--progress); }
+  .dot-completed { background: var(--completed); }
+  .arrow { color: var(--muted); align-self: center; }
+
+  /* Discord card */
+  .discord-card {
+    background: linear-gradient(135deg, rgba(88,101,242,0.16), rgba(56,211,159,0.10));
+    border: 1px solid rgba(88,101,242,0.3);
+  }
+  .discord-card .time-badge {
+    display: inline-block;
+    background: rgba(88,101,242,0.25);
+    color: #c7cdff;
+    padding: 4px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .report-lines { display: grid; gap: 10px; margin-top: 10px; }
+  .report-line {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 15px;
+  }
+  .report-line .emoji { font-size: 20px; }
+
+  /* Glossary */
+  .glossary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .term {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .term dt { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .term dd { margin: 0; color: var(--muted); font-size: 15px; }
+  code {
+    background: rgba(108,140,255,0.15);
+    color: #b9c4ff;
+    padding: 1px 6px; border-radius: 6px;
+    font-size: 0.9em;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    padding: 50px 24px 60px;
+    font-size: 14px;
+    border-top: 1px solid var(--card-border);
+    margin-top: 40px;
+  }
+
+  @media (max-width: 720px) {
+    .journey { grid-template-columns: 1fr; }
+    .sub-grid { grid-template-columns: 1fr; }
+    .node:not(:last-child)::after { content: ""; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">autom8 · Workflow Guide</span>
+    <h1>How autom8 Works</h1>
+    <p>A plain-language walkthrough — from the moment an <strong>Admin creates a project</strong> all the way to a <strong>team member finishing a task</strong>. If you can use a project board, you can follow this.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Overview -->
+  <section>
+    <h2><span class="num">i</span> Overview</h2>
+    <p class="section-lead">
+      autom8 keeps your project board in step with the real work your team does. A project
+      starts with a brief, turns into a set of tasks, those tasks get assigned and worked on,
+      and — when code is pushed to GitHub — autom8 keeps track and sends a tidy summary to
+      Discord every evening. The goal: everyone can see who's doing what, and how far along
+      things are, without anyone having to chase status updates.
+    </p>
+  </section>
+
+  <!-- Roles -->
+  <section>
+    <h2><span class="num">1</span> The three roles</h2>
+    <p class="section-lead">Everyone on autom8 has one of three roles. Your role decides what you see and what you can do.</p>
+    <div class="roles">
+      <div class="role-card role-admin">
+        <div class="role-name">Admin</div>
+        <div class="role-tag">Sees everything</div>
+        <ul>
+          <li>Create projects &amp; manage anything</li>
+          <li>See all tasks across the board</li>
+          <li><strong>Only an Admin can create a project</strong></li>
+        </ul>
+      </div>
+      <div class="role-card role-pm">
+        <div class="role-name">PM · Project Manager</div>
+        <div class="role-tag">Sees only the projects they own</div>
+        <ul>
+          <li>Add and assign tasks</li>
+          <li>Generate tasks from a brief with AI</li>
+          <li>Manage their own projects</li>
+        </ul>
+      </div>
+      <div class="role-card role-member">
+        <div class="role-name">Member · Team member</div>
+        <div class="role-tag">Sees their projects &amp; their tasks</div>
+        <ul>
+          <li>Pick up assigned tasks</li>
+          <li>Create their own tasks</li>
+          <li>Mark their work complete</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Journey -->
+  <section>
+    <h2><span class="num">2</span> The journey at a glance</h2>
+    <p class="section-lead">Three roles, one continuous flow — from a fresh project to a celebrated finish.</p>
+    <div class="journey">
+      <div class="lane lane-admin">
+        <h3>Admin</h3>
+        <div class="node">
+          <strong>Create project</strong>
+          <small>Link a repo, pick a PM &amp; members</small>
+        </div>
+      </div>
+      <div class="lane lane-pm">
+        <h3>PM</h3>
+        <div class="node">
+          <strong>Add tasks</strong>
+          <small>By hand, or AI from a brief</small>
+        </div>
+        <div class="node">
+          <strong>Assign to a member</strong>
+          <small>Hand the work off</small>
+        </div>
+      </div>
+      <div class="lane lane-member">
+        <h3>Member</h3>
+        <div class="node">
+          <strong>Find assigned task</strong>
+          <small>Starts as Pending</small>
+        </div>
+        <div class="node">
+          <strong>Start work</strong>
+          <small>Moves to In-progress</small>
+        </div>
+        <div class="node">
+          <strong>Finish it</strong>
+          <small>Marked Completed</small>
+        </div>
+      </div>
+      <div class="finale">🎉 Daily Discord report wraps up the day</div>
+    </div>
+  </section>
+
+  <!-- Step 1 -->
+  <section>
+    <h2><span class="num">3</span> An Admin creates a project</h2>
+    <p class="section-lead">Only an <strong>Admin</strong> can start a new project. From the dashboard, the Admin opens the <strong>New Project</strong> dialog and fills in:</p>
+    <div class="step-card">
+      <ul>
+        <li><span class="k">Project name</span> — e.g. <em>Landing Page Redesign</em> (required).</li>
+        <li><span class="k">Client</span> — who the work is for.</li>
+        <li><span class="k">GitHub repository</span> — the code repo this project lives in (required), picked from a dropdown of repos autom8 already has access to.</li>
+        <li><span class="k">Project Manager (PM)</span> — the person who will own delivery.</li>
+        <li><span class="k">Team members</span> — the people who will work on it.</li>
+        <li><span class="k">Target delivery date</span>, <span class="k">status</span> (On track / At risk / Delayed), and <span class="k">progress %</span>.</li>
+      </ul>
+      <div class="callout">
+        Once saved, the project appears on the dashboard. From this point the <strong>PM owns it</strong> — they can add and assign work, while assigned <strong>members</strong> can see the project and start picking up tasks.
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2 -->
+  <section>
+    <h2><span class="num">4</span> Tasks land on the board</h2>
+    <p class="section-lead">A project on its own does nothing until it has <strong>tasks</strong>. There are two ways to get them onto the board.</p>
+    <div class="sub-grid">
+      <div class="sub-card">
+        <h4><span class="pill pill-hand">BY HAND</span>Add tasks manually</h4>
+        <p style="color:var(--muted);font-size:14px;margin:0 0 10px;">A PM (or Admin) opens the <strong>Create Task</strong> dialog and enters:</p>
+        <ul>
+          <li>Task name</li>
+          <li>Project it belongs to</li>
+          <li>Assignee — the member who'll do it</li>
+          <li>Due date, priority (High / Medium / Low), and status</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h4><span class="pill pill-ai">AI</span>Generate from a brief</h4>
+        <ol>
+          <li><strong>Upload the brief</strong> — a PDF or Word (<code>.docx</code>) document.</li>
+          <li><strong>Generate</strong> — autom8 drafts 5–20 concrete tasks, each with a suggested category &amp; priority.</li>
+          <li><strong>Review &amp; assign</strong> — the PM edits, removes, and assigns people.</li>
+          <li><strong>Add to board</strong> — approved tasks appear alongside everything else.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="step-card" style="margin-top:18px;">
+      <div class="callout" style="border-left-color:var(--accent-2);background:rgba(56,211,159,0.08);">
+        Members can also add tasks, but only inside projects they're on — and those tasks are automatically assigned to themselves and flagged as <em>member-generated</em>.
+      </div>
+      <p style="margin:16px 0 0;color:var(--muted);">
+        However a task is created, it gets a short <strong>key</strong> like <code>AUT-12</code> so it's easy to refer to. If the project is linked to a GitHub repo, autom8 also opens a matching <strong>GitHub issue</strong> automatically.
+      </p>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section>
+    <h2><span class="num">5</span> A team member works the task</h2>
+    <p class="section-lead">A <strong>member</strong> opens the task board and finds the task assigned to them. New tasks start as <strong>Pending</strong>.</p>
+    <div class="statuses">
+      <span class="chip"><span class="dot dot-pending"></span>Pending</span>
+      <span class="arrow">→</span>
+      <span class="chip"><span class="dot dot-progress"></span>In-progress</span>
+      <span class="arrow">→</span>
+      <span class="chip"><span class="dot dot-completed"></span>Completed</span>
+    </div>
+    <div class="step-card">
+      <ul>
+        <li>When they begin, the task moves to <span class="k">In-progress</span>.</li>
+        <li>As they write code and push commits to GitHub, those commits link back to the task automatically — so the task shows a trail of the work behind it.</li>
+      </ul>
+      <div class="callout">
+        The board makes this easy to follow: tasks are grouped by status (Pending, In-progress, Completed), and you can search by task name, person, or project.
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 4 -->
+  <section>
+    <h2><span class="num">6</span> Finishing the task</h2>
+    <p class="section-lead">A task reaches <strong>Completed</strong> in any of these ways:</p>
+    <div class="step-card">
+      <ul>
+        <li><strong>Tick it off on the board</strong> — check the box next to the task. (The assignee can always check off their own work.)</li>
+        <li><strong>Mark it Completed</strong> in the task's edit dialog.</li>
+        <li><strong>Close the linked GitHub issue</strong> — if a commit or pull request closes the issue (e.g. with <code>fixes #12</code>), autom8 flips the task to Completed on its own.</li>
+      </ul>
+      <div class="callout" style="border-left-color:var(--accent-2);background:rgba(56,211,159,0.08);">
+        Every one of these actions is recorded in the <strong>activity feed</strong>, so there's always a clear history of who did what and when.
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 5 -->
+  <section>
+    <h2><span class="num">7</span> The daily wrap-up (Discord)</h2>
+    <p class="section-lead">You don't have to assemble a status report by hand. autom8 does it for you, automatically.</p>
+    <div class="step-card discord-card">
+      <span class="time-badge">🕔 Once a day · around 5 PM WIB</span>
+      <p style="margin:0 0 6px;">autom8 automatically posts a summary to your team's <strong>Discord</strong> channel containing:</p>
+      <div class="report-lines">
+        <div class="report-line"><span class="emoji">✅</span> The <strong>tasks completed</strong> that day</div>
+        <div class="report-line"><span class="emoji">📦</span> The <strong>commits pushed</strong>, grouped by project and by division (Frontend, Backend, and so on)</div>
+      </div>
+      <p style="margin:16px 0 0;color:var(--muted);">It's a one-glance picture of the day's progress — no one has to write it.</p>
+    </div>
+  </section>
+
+  <!-- Glossary -->
+  <section>
+    <h2><span class="num">?</span> Quick glossary</h2>
+    <dl class="glossary">
+      <div class="term"><dt>Project</dt><dd>A body of work for a client, owned by a PM and linked to a GitHub repo.</dd></div>
+      <div class="term"><dt>Task</dt><dd>A single, shippable unit of work inside a project.</dd></div>
+      <div class="term"><dt><code>AUT-N</code> key</dt><dd>The short handle for a task (e.g. <code>AUT-12</code>), used everywhere to refer to it.</dd></div>
+      <div class="term"><dt>Division</dt><dd>The discipline a task belongs to: Frontend, Backend, Design, QA, DevOps, Research, or Other.</dd></div>
+      <div class="term"><dt>Status</dt><dd>Where a task is in its life: <strong>Pending → In-progress → Completed</strong>.</dd></div>
+      <div class="term"><dt>Priority</dt><dd>How urgent a task is: <strong>High</strong>, <strong>Medium</strong>, or <strong>Low</strong>.</dd></div>
+    </dl>
+  </section>
+
+</div>
+
+<footer>
+  Generated from <strong>WEBSITE-FLOW.md</strong> · autom8 keeps your board in step with the real work.
+</footer>
+
+</body>
+</html>

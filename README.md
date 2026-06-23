@@ -50,6 +50,17 @@ expose — access is governed by [firestore.rules](firestore.rules), not key sec
 > Firestore runs in **Test mode** (open) for the prototype. Lock it down with the
 > auth-aware rules drafted in [firestore.rules](firestore.rules) once real sign-in is added.
 
+### GitHub Issues sync (optional)
+
+Link a repo to a project and autom8 opens a **GitHub Issue** for every task, then ticks the
+task off automatically when a commit/PR closes that issue (`fixes #12`). It needs a **GitHub
+App** (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_WEBHOOK_SECRET`) — full setup,
+including the App's permissions and webhook, is in **[GITHUB-ISSUES.md](GITHUB-ISSUES.md)**.
+
+> Because the repo is required and picked from the App, **creating a project needs the
+> GitHub App configured**. Without it, the rest of the app works as before; projects made
+> earlier just stay unlinked.
+
 ## Page structure
 
 The page is composed top-to-bottom in [src/app/page.tsx](src/app/page.tsx), telling one

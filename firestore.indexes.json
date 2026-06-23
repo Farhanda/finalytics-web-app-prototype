@@ -1,0 +1,5 @@
+{
+  "comment": "All app queries filter on a single field (key, issueNumber, projectId, createdAt, receivedAt) and are served by Firestore's automatic single-field indexes. The activities listener orders by a single field (createdAt) with a limit — also automatic. No composite indexes are required; this file is kept so `firebase deploy --only firestore` manages indexes explicitly.",
+  "indexes": [],
+  "fieldOverrides": []
+}

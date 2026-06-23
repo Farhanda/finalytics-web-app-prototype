@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// autom8 Cloud Storage rules — PRODUCTION
+// =============================================================================
+// Project briefs (PDF/DOCX) are uploaded ONLY by the server document route using
+// the Firebase Admin SDK, which bypasses these rules. No browser ever reads or
+// writes Storage directly, so we deny all client access by default. This keeps
+// uploaded client documents private even if a bucket URL leaks.
+// Deploy: firebase deploy --only storage
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

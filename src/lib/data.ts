@@ -70,6 +70,11 @@ export type Task = {
   aiGenerated?: boolean;
   // Discipline bucket assigned by the AI (FE/BE/etc.) — optional, for grouping.
   category?: TaskCategory;
+  // GitHub Issues sync (two-way). Set when an Issue was auto-created for this task
+  // in its project's repo; the issues webhook completes the task when it closes.
+  issueNumber?: number; // e.g. 12
+  issueUrl?: string; // https://github.com/owner/repo/issues/12
+  repoFullName?: string; // "owner/repo" — denormalized so the webhook can match
   status: TaskStatus;
   priority: Priority;
   done: boolean;

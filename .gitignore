@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# QA: the Vitest JSON output is regenerated each run; QA-STATUS.md is committed.
+/qa-results.json
 
 # next.js
 /.next/

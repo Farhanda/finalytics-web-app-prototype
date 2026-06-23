@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { authedFetch } from "@/lib/auth";
 import { statusStyles, type DashboardProject } from "@/lib/dashboard-data";
 import type { GeneratedTaskDraft, TaskCategory } from "@/lib/data";
 import { useDashboard } from "@/components/dashboard/provider";
@@ -80,7 +81,7 @@ export function ProjectCard({ project }: { project: DashboardProject }) {
   // Commits delivered by the project's per-division webhooks (Tahap 3).
   useEffect(() => {
     let active = true;
-    fetch(`/api/projects/${project.id}/commits`)
+    authedFetch(`/api/projects/${project.id}/commits`)
       .then((r) => r.json())
       .then((data) => {
         if (active && data?.ok) setFeedCommits(data.commits ?? []);

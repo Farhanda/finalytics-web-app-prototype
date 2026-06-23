@@ -4,11 +4,12 @@ import { firebaseReady } from "@/lib/firebase";
 import { adminReady } from "@/lib/firebase-admin";
 import { deleteWebhook, getWebhookById } from "@/lib/firestore";
 import { deleteWebhookAdmin, getWebhookByIdAdmin } from "@/lib/firestore-admin";
+import { authorize } from "@/lib/route-auth";
 
 export const runtime = "nodejs";
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string; webhookId: string }> }
 ) {
   if (!firebaseReady && !adminReady)
@@ -16,6 +17,9 @@ export async function DELETE(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  const auth = await authorize(req, { roles: ["Admin", "PM"] });
+  if (!auth.ok) return auth.response;
 
   const { id: projectId, webhookId } = await params;
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { authRequired } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { accessRoleStyles } from "@/lib/dashboard-data";
@@ -165,28 +166,32 @@ export default function SettingsPage() {
       {/* GitHub integration */}
       <TaskSyncCard />
 
-      {/* Danger zone */}
-      <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6">
-        <h3 className="font-heading text-lg font-bold text-foreground">
-          Danger zone
-        </h3>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Restore all tasks, activity, and profile to their original demo state.
-          </p>
-          <Button
-            variant="outline"
-            className={cn("border-rose-300 text-rose-600 hover:bg-rose-100")}
-            onClick={() => {
-              resetDemo();
-              toast.success("Demo data reset");
-            }}
-          >
-            <RotateCcw className="size-4" />
-            Reset demo data
-          </Button>
+      {/* Danger zone — demo/staging only. Hidden under real auth, where it would
+          wipe the users collection (including your own Admin profile). */}
+      {!authRequired && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6">
+          <h3 className="font-heading text-lg font-bold text-foreground">
+            Danger zone
+          </h3>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Restore all tasks, activity, and profile to their original demo
+              state.
+            </p>
+            <Button
+              variant="outline"
+              className={cn("border-rose-300 text-rose-600 hover:bg-rose-100")}
+              onClick={() => {
+                resetDemo();
+                toast.success("Demo data reset");
+              }}
+            >
+              <RotateCcw className="size-4" />
+              Reset demo data
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

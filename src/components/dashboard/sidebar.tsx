@@ -4,12 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronsUpDown, Home, RotateCcw, UserCog } from "lucide-react";
+import { Check, ChevronsUpDown, Home, LogOut, RotateCcw, UserCog } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { authRequired } from "@/lib/firebase";
 import { Logo } from "@/components/brand/logo";
 import { accessRoleStyles, navGroupsFor, type AccessRole } from "@/lib/dashboard-data";
 import { useDashboard } from "@/components/dashboard/provider";
+import { useAuth } from "@/components/dashboard/auth-provider";
 
 const ROLE_ORDER: AccessRole[] = ["Admin", "PM", "Member"];
 
@@ -17,6 +19,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { visibleTasks, team, currentUser, role, switchUser, resetDemo } =
     useDashboard();
+  const { signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navGroups = navGroupsFor(role);
@@ -90,57 +93,59 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() => setMenuOpen(false)}
             />
             <div className="absolute bottom-16 left-3 right-3 z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
-              {/* Identity / role switcher (prototype: no real auth) */}
-              <div className="border-b border-border/60">
-                <p className="flex items-center gap-2 px-3 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  <UserCog className="size-3.5" />
-                  Switch identity
-                </p>
-                <div className="max-h-64 overflow-y-auto pb-1">
-                  {ROLE_ORDER.map((r) => {
-                    const users = team.filter((m) => m.accessRole === r);
-                    if (users.length === 0) return null;
-                    return (
-                      <div key={r}>
-                        <p className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/60">
-                          {r}
-                        </p>
-                        {users.map((u) => {
-                          const isCurrent = u.id === currentUser.id;
-                          return (
-                            <button
-                              key={u.id}
-                              onClick={() => {
-                                switchUser(u.id);
-                                setMenuOpen(false);
-                                toast.success(`Viewing as ${u.name}`, {
-                                  description: `${u.accessRole} · ${u.role}`,
-                                });
-                              }}
-                              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
-                            >
-                              <span
-                                className={cn(
-                                  "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
-                                  u.tint
-                                )}
+              {/* Demo-only identity/role switcher (hidden under real auth). */}
+              {!authRequired && (
+                <div className="border-b border-border/60">
+                  <p className="flex items-center gap-2 px-3 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    <UserCog className="size-3.5" />
+                    Switch identity
+                  </p>
+                  <div className="max-h-64 overflow-y-auto pb-1">
+                    {ROLE_ORDER.map((r) => {
+                      const users = team.filter((m) => m.accessRole === r);
+                      if (users.length === 0) return null;
+                      return (
+                        <div key={r}>
+                          <p className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/60">
+                            {r}
+                          </p>
+                          {users.map((u) => {
+                            const isCurrent = u.id === currentUser.id;
+                            return (
+                              <button
+                                key={u.id}
+                                onClick={() => {
+                                  switchUser(u.id);
+                                  setMenuOpen(false);
+                                  toast.success(`Viewing as ${u.name}`, {
+                                    description: `${u.accessRole} · ${u.role}`,
+                                  });
+                                }}
+                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
                               >
-                                {u.initials}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate">
-                                {u.name}
-                              </span>
-                              {isCurrent && (
-                                <Check className="size-4 text-primary" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                                <span
+                                  className={cn(
+                                    "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                                    u.tint
+                                  )}
+                                >
+                                  {u.initials}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate">
+                                  {u.name}
+                                </span>
+                                {isCurrent && (
+                                  <Check className="size-4 text-primary" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <Link
                 href="/"
@@ -153,17 +158,35 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 <Home className="size-4 text-muted-foreground" />
                 Back to home page
               </Link>
-              <button
-                onClick={() => {
-                  resetDemo();
-                  setMenuOpen(false);
-                  toast.success("Demo data reset");
-                }}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted"
-              >
-                <RotateCcw className="size-4 text-muted-foreground" />
-                Reset demo data
-              </button>
+
+              {authRequired ? (
+                <button
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    try {
+                      await signOut();
+                    } catch {
+                      toast.error("Could not sign out");
+                    }
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted"
+                >
+                  <LogOut className="size-4 text-muted-foreground" />
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    resetDemo();
+                    setMenuOpen(false);
+                    toast.success("Demo data reset");
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted"
+                >
+                  <RotateCcw className="size-4 text-muted-foreground" />
+                  Reset demo data
+                </button>
+              )}
             </div>
           </>
         )}

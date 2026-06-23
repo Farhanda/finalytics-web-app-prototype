@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { authedFetch } from "@/lib/auth";
 import type { GeneratedTaskDraft } from "@/lib/data";
 import type { DashboardProject } from "@/lib/dashboard-data";
 
@@ -71,7 +72,7 @@ export function DocumentDialog({
     if (!open) return;
     let active = true;
     setLoading(true);
-    fetch(endpoint)
+    authedFetch(endpoint)
       .then((r) => r.json())
       .then((data) => {
         if (active && data?.ok) setDocs(data.documents ?? []);
@@ -97,7 +98,7 @@ export function DocumentDialog({
       body.append("file", file);
       body.append("uploadedBy", uploadedBy);
 
-      const res = await fetch(endpoint, { method: "POST", body });
+      const res = await authedFetch(endpoint, { method: "POST", body });
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.ok) {
@@ -113,7 +114,7 @@ export function DocumentDialog({
         }.`,
       });
       // Refresh the list so the new brief shows immediately.
-      const list = await fetch(endpoint).then((r) => r.json());
+      const list = await authedFetch(endpoint).then((r) => r.json());
       if (list?.ok) setDocs(list.documents ?? []);
     } catch {
       toast.error("Upload failed", {
@@ -128,7 +129,7 @@ export function DocumentDialog({
   async function handleGenerate(documentId: string) {
     setGeneratingId(documentId);
     try {
-      const res = await fetch(`/api/projects/${project.id}/generate-tasks`, {
+      const res = await authedFetch(`/api/projects/${project.id}/generate-tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId }),

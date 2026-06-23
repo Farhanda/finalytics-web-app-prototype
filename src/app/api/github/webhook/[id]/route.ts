@@ -47,6 +47,13 @@ export async function POST(
       { status: 503 }
     );
 
+  // Reject oversized bodies before reading them into memory.
+  if (Number(req.headers.get("content-length") ?? 0) > 5_000_000)
+    return Response.json(
+      { ok: false, error: "Payload too large." },
+      { status: 413 }
+    );
+
   const { id: webhookId } = await params;
 
   const hook = adminReady

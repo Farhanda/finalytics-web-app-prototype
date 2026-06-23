@@ -21,6 +21,8 @@ import {
   setDocumentTaskGenStatusAdmin,
 } from "@/lib/firestore-admin";
 import { aiReady, generateTasksFromDocument } from "@/lib/ai";
+import { authorize } from "@/lib/route-auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -33,6 +35,14 @@ export async function POST(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  // Paid Claude call — only project managers/admins may trigger it, and only
+  // a few times a minute, so it can't be used to run up a bill.
+  const auth = await authorize(req, { roles: ["Admin", "PM"] });
+  if (!auth.ok) return auth.response;
+  const rate = checkRateLimit(`generate:${auth.user?.uid ?? "local"}`, 5, 60_000);
+  if (!rate.ok) return rate.response;
+
   if (!aiReady)
     return Response.json(
       {

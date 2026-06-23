@@ -15,6 +15,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
+import { toast } from "sonner";
 
 import {
   type Priority,
@@ -42,7 +43,9 @@ import {
   visibleProjects as selectVisibleProjects,
   visibleTasks as selectVisibleTasks,
 } from "@/lib/access";
-import { firebaseReady } from "@/lib/firebase";
+import { firebaseReady, authRequired } from "@/lib/firebase";
+import { authedFetch } from "@/lib/auth";
+import { useAuth } from "@/components/dashboard/auth-provider";
 import {
   activitiesCol,
   createProject,
@@ -52,6 +55,7 @@ import {
   fromSnap,
   logActivityDoc,
   projectsCol,
+  propagateAssigneeRename,
   seedFirestore,
   tasksCol,
   updateProjectDoc,
@@ -121,6 +125,7 @@ export type ProjectInput = {
   memberIds: string[];
   status: ProjectStatus;
   progress: number;
+  repoFullName?: string; // "owner/repo" — required by the create form (picker)
 };
 
 export type PersonInput = {
@@ -231,26 +236,33 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string>(DEFAULT_USER_ID);
+
+  // Identity: in production it's the signed-in Firebase user (uid); in demo mode
+  // (auth not required) it's a client-only switcher persisted to localStorage.
+  const { user: firebaseUser } = useAuth();
+  const [demoUserId, setDemoUserId] = useState<string>(DEFAULT_USER_ID);
+  const currentUserId = authRequired ? firebaseUser?.uid ?? "" : demoUserId;
 
   const seededRef = useRef(false);
 
-  // Identity lives in localStorage — it's a client-only demo concern, not data.
+  // Demo-only: remember the chosen demo identity. Skipped under real auth.
   useEffect(() => {
+    if (authRequired) return;
     try {
       const saved = window.localStorage.getItem(USER_STORAGE_KEY);
-      if (saved) setCurrentUserId(saved);
+      if (saved) setDemoUserId(saved);
     } catch {
       // ignore
     }
   }, []);
   useEffect(() => {
+    if (authRequired) return;
     try {
-      window.localStorage.setItem(USER_STORAGE_KEY, currentUserId);
+      window.localStorage.setItem(USER_STORAGE_KEY, demoUserId);
     } catch {
       // ignore
     }
-  }, [currentUserId]);
+  }, [demoUserId]);
 
   // Subscribe to Firestore. Four live listeners keep the UI in sync across
   // tabs/devices; the users listener also seeds the DB on first (empty) run.
@@ -266,7 +278,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     const unsubUsers = onSnapshot(
       usersCol,
       (snap) => {
-        if (snap.empty && !seededRef.current) {
+        // Demo mode only: self-seed an empty DB. In production the security rules
+        // forbid this (and the first sign-in provisions the Admin), so skip it.
+        if (snap.empty && !seededRef.current && !authRequired) {
           seededRef.current = true;
           seedFirestore().catch(onError("seed"));
           return; // keep loading until the seeded data arrives
@@ -330,9 +344,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [team]
   );
 
-  const switchUser = useCallback((userId: string) => {
-    setCurrentUserId(userId);
-  }, []);
+  const switchUser = useCallback(
+    (userId: string) => {
+      // In production identity is the signed-in user — the switcher is a no-op.
+      if (authRequired) return;
+      setDemoUserId(userId);
+    },
+    []
+  );
 
   // Role-scoped views.
   const visibleProjects = useMemo(
@@ -406,12 +425,22 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = useCallback(
     (partial: Partial<Pick<Profile, "name" | "email">>) => {
       const next: Partial<TeamMember> = { ...partial };
-      if (partial.name) next.initials = initialsFrom(partial.name);
-      updateUserDoc(currentUserId, next).catch(
-        (err) => console.error("[firestore] updateProfile failed", err)
-      );
+      const newName = partial.name?.trim();
+      if (newName) next.initials = initialsFrom(newName);
+      updateUserDoc(currentUserId, next)
+        .then(() => {
+          // Refresh the denormalized assignee snapshot on this user's tasks so a
+          // rename shows everywhere, not just on their profile.
+          if (newName)
+            return propagateAssigneeRename(currentUserId, {
+              name: newName,
+              initials: initialsFrom(newName),
+              tint: currentUser.tint,
+            });
+        })
+        .catch((err) => console.error("[firestore] updateProfile failed", err));
     },
-    [currentUserId]
+    [currentUserId, currentUser.tint]
   );
 
   // Add a teammate. Writes a new `users` document to Firestore; the live users
@@ -443,6 +472,30 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [team.length, currentUser, logActivity]
   );
 
+  // Best-effort: ask the server to open GitHub issues for freshly-created tasks.
+  // The GitHub App key is server-only, so this goes through the API; the live
+  // tasks listener folds the issue link back in once written. Never blocks task
+  // creation — a 503 (App not configured) just shows a soft notice.
+  const requestIssues = useCallback((taskIds: string[]) => {
+    if (taskIds.length === 0) return;
+    authedFetch("/api/github/issues", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskIds }),
+    })
+      .then(async (res) => {
+        if (res.status === 503) {
+          const data = await res.json().catch(() => null);
+          toast.message("Task saved without a GitHub issue", {
+            description: data?.error ?? "GitHub App is not configured.",
+          });
+        }
+      })
+      .catch(() => {
+        /* offline / network — the issue can be created later */
+      });
+  }, []);
+
   const addProject = useCallback(
     (input: ProjectInput) => {
       const data: Omit<DashboardProject, "id"> = {
@@ -454,6 +507,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         tint: projectTints[projects.length % projectTints.length],
         pmId: input.pmId,
         memberIds: input.memberIds,
+        ...(input.repoFullName?.trim()
+          ? { repoFullName: input.repoFullName.trim() }
+          : {}),
       };
       createProject(data)
         .then(() =>
@@ -482,6 +538,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         ...(partial.memberIds !== undefined && { memberIds: partial.memberIds }),
         ...(partial.status !== undefined && { status: partial.status }),
         ...(partial.progress !== undefined && { progress: partial.progress }),
+        ...(partial.repoFullName !== undefined && {
+          repoFullName: partial.repoFullName.trim(),
+        }),
       };
       const project = projects.find((p) => p.id === id);
       updateProjectDoc(id, mapped)
@@ -526,20 +585,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         done: input.status === "Completed",
       };
       createTask(data)
-        .then(() =>
+        .then((id) => {
           logActivity({
             actor: currentUser.name,
             initials: currentUser.initials,
             tint: currentUser.tint,
             action: "created task",
             target: data.name,
-          })
-        )
+          });
+          requestIssues([id]);
+        })
         .catch(
           (err) => console.error("[firestore] addTask failed", err)
         );
     },
-    [tasks, team, currentUser, currentUserId, role, logActivity]
+    [tasks, team, currentUser, currentUserId, role, logActivity, requestIssues]
   );
 
   // Commit a batch of AI-drafted tasks the PM approved (Tahap 2). Keys are
@@ -555,6 +615,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         return Number.isFinite(v) && v > m ? v : m;
       }, 0);
 
+      const ids: string[] = [];
       for (const input of inputs) {
         n += 1;
         const member = team.find((m) => m.id === input.assigneeId);
@@ -578,7 +639,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           priority: input.priority,
           done: false,
         };
-        await createTask(data);
+        ids.push(await createTask(data));
       }
 
       logActivity({
@@ -588,8 +649,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         action: "generated",
         target: `${inputs.length} task${inputs.length === 1 ? "" : "s"} with AI`,
       });
+      requestIssues(ids);
     },
-    [tasks, team, currentUser, currentUserId, logActivity]
+    [tasks, team, currentUser, currentUserId, logActivity, requestIssues]
   );
 
   const updateTask = useCallback(
@@ -724,10 +786,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const resetDemo = useCallback(() => {
+    // Demo/staging only. Under real auth this would wipe the users collection
+    // (including the signed-in Admin's own profile) and is hidden in the UI.
+    if (authRequired) return;
     seedFirestore().catch(
       (err) => console.error("[firestore] resetDemo failed", err)
     );
-    setCurrentUserId(DEFAULT_USER_ID);
+    setDemoUserId(DEFAULT_USER_ID);
   }, []);
 
   const value = useMemo<Ctx>(

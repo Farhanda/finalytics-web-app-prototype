@@ -79,6 +79,10 @@ export type DashboardProject = {
   pmId: string;
   // Team members the PM has assigned to this project.
   memberIds: string[];
+  // GitHub repo ("owner/repo") an Admin links at creation — every task in this
+  // project auto-opens its Issue here. Optional only so pre-existing/seed
+  // projects (which predate the field) stay valid; required in the create form.
+  repoFullName?: string;
 };
 
 // Rotating accent colors used when an Admin creates a new project.

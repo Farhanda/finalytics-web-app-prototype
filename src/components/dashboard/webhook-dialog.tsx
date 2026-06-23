@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { authedFetch } from "@/lib/auth";
 import { TASK_CATEGORIES, type TaskCategory } from "@/lib/data";
 import type { DashboardProject } from "@/lib/dashboard-data";
 
@@ -82,7 +83,7 @@ export function WebhookDialog({
   async function refresh() {
     setLoading(true);
     try {
-      const data = await fetch(endpoint).then((r) => r.json());
+      const data = await authedFetch(endpoint).then((r) => r.json());
       if (data?.ok) setHooks(data.webhooks ?? []);
     } catch {
       /* listing is best-effort */
@@ -101,7 +102,7 @@ export function WebhookDialog({
   async function handleCreate() {
     setCreating(true);
     try {
-      const res = await fetch(endpoint, {
+      const res = await authedFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +134,7 @@ export function WebhookDialog({
 
   async function handleDelete(id: string) {
     try {
-      const res = await fetch(`${endpoint}/${id}`, { method: "DELETE" });
+      const res = await authedFetch(`${endpoint}/${id}`, { method: "DELETE" });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
         toast.error("Could not delete webhook");

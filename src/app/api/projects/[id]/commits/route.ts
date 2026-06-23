@@ -5,11 +5,12 @@ import { firebaseReady } from "@/lib/firebase";
 import { adminReady } from "@/lib/firebase-admin";
 import { listProjectCommits } from "@/lib/firestore";
 import { listProjectCommitsAdmin } from "@/lib/firestore-admin";
+import { authorize } from "@/lib/route-auth";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!firebaseReady && !adminReady)
@@ -17,6 +18,9 @@ export async function GET(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  const auth = await authorize(req);
+  if (!auth.ok) return auth.response;
 
   const { id: projectId } = await params;
 

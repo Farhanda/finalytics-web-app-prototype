@@ -25,6 +25,7 @@ import {
 } from "@/lib/firestore-admin";
 import { detectDocKind, extractText, mimeForKind } from "@/lib/doc-parse";
 import { uploadProjectDocument } from "@/lib/storage";
+import { authorize } from "@/lib/route-auth";
 import type { ProjectDocument } from "@/lib/data";
 
 export const runtime = "nodejs";
@@ -48,6 +49,11 @@ export async function POST(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  // Uploading a brief is a project-management action (the Docs dialog is only
+  // shown to a project's PM/Admin in the UI).
+  const auth = await authorize(req, { roles: ["Admin", "PM"] });
+  if (!auth.ok) return auth.response;
 
   const { id: projectId } = await params;
 
@@ -189,6 +195,9 @@ export async function GET(
       { ok: false, error: "Firebase is not configured." },
       { status: 503 }
     );
+
+  const auth = await authorize(req);
+  if (!auth.ok) return auth.response;
 
   const { id: projectId } = await params;
 

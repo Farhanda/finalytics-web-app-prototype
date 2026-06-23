@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Check,
+  CircleDot,
   GitCommitHorizontal,
   Pencil,
   Plus,
@@ -188,6 +189,18 @@ export function TaskBoard({
                               <GitCommitHorizontal className="size-3" />
                               {task.commits.length}
                             </span>
+                          )}
+                          {task.issueNumber && (
+                            <a
+                              href={task.issueUrl || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-primary"
+                              title={`GitHub issue #${task.issueNumber}`}
+                            >
+                              <CircleDot className="size-3" />#{task.issueNumber}
+                            </a>
                           )}
                         </div>
                         <span

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { authedFetch } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,6 +43,7 @@ const empty: ProjectInput = {
   memberIds: [],
   status: "On track",
   progress: 0,
+  repoFullName: "",
 };
 
 export function ProjectDialog() {
@@ -57,6 +59,10 @@ export function ProjectDialog() {
 
   const [form, setForm] = useState<ProjectInput>(empty);
   const [error, setError] = useState<string | null>(null);
+  // Repos the GitHub App can reach — the Admin links one at creation (required).
+  const [repos, setRepos] = useState<string[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
 
   const isEdit = projectDialog.mode === "edit";
   const isAdmin = role === "Admin";
@@ -76,12 +82,51 @@ export function ProjectDialog() {
         memberIds: [...p.memberIds],
         status: p.status,
         progress: p.progress,
+        repoFullName: p.repoFullName ?? "",
       });
     } else {
       setForm({ ...empty, pmId: pmCandidates[0]?.id ?? "" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectDialog.open, projectDialog.project]);
+
+  // Load the linkable repos from the GitHub App when the dialog opens.
+  useEffect(() => {
+    if (!projectDialog.open) return;
+    let cancelled = false;
+    setReposLoading(true);
+    setReposError(null);
+    authedFetch("/api/github/repos")
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (res.ok && data?.ok) {
+          const list: string[] = data.repos ?? [];
+          setRepos(list);
+          if (list.length === 0)
+            setReposError(
+              "The GitHub App can't see any repositories yet. Install it on a repo first."
+            );
+        } else {
+          setRepos([]);
+          setReposError(
+            data?.error ??
+              "Could not load repositories. Configure & install the autom8 GitHub App."
+          );
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRepos([]);
+        setReposError("Could not reach the server to load repositories.");
+      })
+      .finally(() => {
+        if (!cancelled) setReposLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDialog.open]);
 
   const set = <K extends keyof ProjectInput>(key: K, val: ProjectInput[K]) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -102,6 +147,12 @@ export function ProjectDialog() {
     }
     if (!form.pmId) {
       setError("Please assign a project manager.");
+      return;
+    }
+    // Linking a repo is required when creating — that's what wires the project to
+    // GitHub Issues. (Editing a legacy project without one isn't forced.)
+    if (!isEdit && !form.repoFullName?.trim()) {
+      setError("Please link a GitHub repository.");
       return;
     }
     if (isEdit && projectDialog.project) {
@@ -151,6 +202,47 @@ export function ProjectDialog() {
                 className={fieldClass}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="project-repo">
+              GitHub repository{!isEdit && <span className="text-destructive"> *</span>}
+            </Label>
+            <select
+              id="project-repo"
+              value={form.repoFullName ?? ""}
+              onChange={(e) => set("repoFullName", e.target.value)}
+              disabled={reposLoading || repos.length === 0}
+              className={cn(
+                fieldClass,
+                "cursor-pointer",
+                (reposLoading || repos.length === 0) &&
+                  "cursor-not-allowed opacity-70"
+              )}
+            >
+              <option value="">
+                {reposLoading
+                  ? "Loading repositories…"
+                  : repos.length === 0
+                    ? "No repositories available"
+                    : "Select a repository"}
+              </option>
+              {/* Keep a previously-linked repo selectable even if the app can no
+                  longer enumerate it. */}
+              {form.repoFullName &&
+                !repos.includes(form.repoFullName) && (
+                  <option value={form.repoFullName}>{form.repoFullName}</option>
+                )}
+              {repos.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              {reposError ??
+                "Tasks in this project auto-open an issue in this repo; closing the issue completes the task."}
+            </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
