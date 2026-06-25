@@ -50,6 +50,13 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Google sign-in opens a cross-origin popup (accounts.google.com) and the
+  // Firebase SDK polls `popup.closed` to know when it's done. A strict COOP
+  // ('same-origin') severs the opener↔popup link, so the browser blocks that
+  // read ("Cross-Origin-Opener-Policy policy would block the window.closed
+  // call") and signInWithPopup can hang. 'same-origin-allow-popups' keeps the
+  // page isolated but lets popups we open ourselves retain the opener handle.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   {
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains",
