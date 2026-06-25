@@ -9,13 +9,28 @@ import type { NextConfig } from "next";
 // styles; eliminating it needs a per-request nonce via middleware (a worthwhile
 // future hardening step, tracked in PATH-TO-PRODUCTION.md). Everything else is
 // locked to the specific Google/Firebase hosts below.
+//
+// `'unsafe-eval'` is added in DEVELOPMENT ONLY: `next dev` ships each module
+// wrapped in eval() (webpack eval-source-map) and React Fast Refresh also evals,
+// so without it the CSP blocks all client JS in dev and the app never hydrates
+// (it freezes on the server-rendered loading screen). Production builds contain
+// no eval(), so the prod policy stays strict.
+const isDev = process.env.NODE_ENV !== "production";
+const scriptSrc = [
+  "script-src 'self' 'unsafe-inline'",
+  isDev ? "'unsafe-eval'" : "",
+  "https://apis.google.com https://www.gstatic.com",
+]
+  .filter(Boolean)
+  .join(" ");
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   // Google account avatars + inline/data images.

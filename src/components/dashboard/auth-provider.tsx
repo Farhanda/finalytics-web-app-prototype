@@ -45,11 +45,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
+    // Safety net: never strand the user on the "Checking your session…" spinner.
+    // If Firebase Auth never resolves its initial state (e.g. its sign-in iframe
+    // is blocked by CSP, or the network is down), stop loading after a grace
+    // period and fall back to the sign-in screen with an explanation instead of
+    // spinning forever.
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setProvisionError(
+        "Couldn't verify your session — check your connection and reload. " +
+          "If this persists, the browser console may show a blocked request."
+      );
+    }, 15000);
+
     const unsub = onAuthChange(async (u) => {
       setUser(u);
       if (!u) {
         setProvisioned(false);
         setProvisionError(null);
+        clearTimeout(timeout);
         setLoading(false);
         return;
       }
@@ -74,10 +88,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "Could not reach the server to set up your account."
         );
       } finally {
+        clearTimeout(timeout);
         setLoading(false);
       }
     });
-    return unsub;
+    return () => {
+      clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   const signIn = useCallback(async () => {
