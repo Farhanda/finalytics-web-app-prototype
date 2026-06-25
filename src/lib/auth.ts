@@ -10,6 +10,7 @@
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type User,
@@ -29,6 +30,17 @@ export function onAuthChange(cb: (user: User | null) => void): () => void {
     return () => {};
   }
   return onAuthStateChanged(auth, cb);
+}
+
+// Email + password sign-in. The signed-in user's uid is their identity; the
+// app provisions users/{uid} in Firestore on first sign-in (see
+// /api/auth/provision), so the profile lands in the same place as before.
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<void> {
+  if (!auth) throw new Error("Authentication is not configured.");
+  await signInWithEmailAndPassword(auth, email.trim(), password);
 }
 
 export async function signInWithGoogle(): Promise<void> {

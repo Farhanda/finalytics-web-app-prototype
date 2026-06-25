@@ -11,7 +11,7 @@ import {
 import { authRequired, firebaseReady } from "@/lib/firebase";
 import {
   onAuthChange,
-  signInWithGoogle,
+  signInWithEmail,
   signOutUser,
   type User,
 } from "@/lib/auth";
@@ -27,7 +27,7 @@ type AuthCtx = {
   // True once the user has a users/{uid} profile (server-provisioned).
   provisioned: boolean;
   provisionError: string | null;
-  signIn: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -98,9 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (email: string, password: string) => {
     setProvisionError(null);
-    await signInWithGoogle();
+    await signInWithEmail(email, password);
   }, []);
 
   const signOut = useCallback(async () => {
