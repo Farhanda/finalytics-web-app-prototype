@@ -54,40 +54,55 @@ export async function POST(req: Request) {
     );
   }
 
-  const usersCol = adminDb.collection("users");
-  const ref = usersCol.doc(uid);
-  const existing = await ref.get();
-  if (existing.exists) {
+  try {
+    const usersCol = adminDb.collection("users");
+    const ref = usersCol.doc(uid);
+    const existing = await ref.get();
+    if (existing.exists) {
+      return Response.json({
+        ok: true,
+        created: false,
+        user: { id: uid, ...existing.data() },
+      });
+    }
+
+    // Empty workspace? First user bootstraps as Admin.
+    const any = await usersCol.limit(1).get();
+    const isFirst = any.empty;
+    const accessRole: AccessRole = isFirst ? "Admin" : "Member";
+
+    // Pick a stable-ish avatar tint from the current member count.
+    const count = (await usersCol.count().get()).data().count;
+
+    const profile: Omit<TeamMember, "id"> = {
+      name: displayName,
+      email,
+      initials: initialsFrom(displayName),
+      tint: memberTints[count % memberTints.length],
+      role: isFirst ? "Workspace Admin" : "Team Member",
+      accessRole,
+    };
+
+    await ref.set(profile);
+
     return Response.json({
       ok: true,
-      created: false,
-      user: { id: uid, ...existing.data() },
+      created: true,
+      bootstrappedAdmin: isFirst,
+      user: { id: uid, ...profile },
     });
+  } catch (err) {
+    // The Firestore calls above sign their requests with the Admin service
+    // account. The most common production failure is a malformed
+    // FIREBASE_PRIVATE_KEY (surrounding quotes or un-unescaped newlines in the
+    // Vercel env), which lets verifyIdToken pass (it uses Google's public keys)
+    // but breaks any Firestore access. Surface the real reason instead of a
+    // bare 500 so it's diagnosable from the client and the server logs.
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[auth/provision] Firestore provisioning failed:", err);
+    return Response.json(
+      { ok: false, error: "Could not set up your account.", detail },
+      { status: 500 }
+    );
   }
-
-  // Empty workspace? First user bootstraps as Admin.
-  const any = await usersCol.limit(1).get();
-  const isFirst = any.empty;
-  const accessRole: AccessRole = isFirst ? "Admin" : "Member";
-
-  // Pick a stable-ish avatar tint from the current member count.
-  const count = (await usersCol.count().get()).data().count;
-
-  const profile: Omit<TeamMember, "id"> = {
-    name: displayName,
-    email,
-    initials: initialsFrom(displayName),
-    tint: memberTints[count % memberTints.length],
-    role: isFirst ? "Workspace Admin" : "Team Member",
-    accessRole,
-  };
-
-  await ref.set(profile);
-
-  return Response.json({
-    ok: true,
-    created: true,
-    bootstrappedAdmin: isFirst,
-    user: { id: uid, ...profile },
-  });
 }
