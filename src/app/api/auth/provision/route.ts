@@ -10,7 +10,12 @@
 // Admin; everyone after that is provisioned as a Member for an Admin to place on
 // projects / promote. Idempotent — returns the existing profile if already set.
 
-import { adminAuth, adminDb, adminReady } from "@/lib/firebase-admin";
+import {
+  adminAuth,
+  adminDb,
+  adminReady,
+  adminInitErrorMessage,
+} from "@/lib/firebase-admin";
 import { memberTints, type AccessRole, type TeamMember } from "@/lib/dashboard-data";
 
 export const runtime = "nodejs";
@@ -27,8 +32,10 @@ export async function POST(req: Request) {
     return Response.json(
       {
         ok: false,
-        error:
-          "Server auth is not configured. Set the Firebase Admin SDK env vars to enable sign-in provisioning.",
+        error: adminInitErrorMessage
+          ? "Server auth failed to initialize. The Firebase Admin credentials are set but invalid — most likely FIREBASE_PRIVATE_KEY is malformed."
+          : "Server auth is not configured. Set the Firebase Admin SDK env vars to enable sign-in provisioning.",
+        detail: adminInitErrorMessage ?? undefined,
       },
       { status: 503 }
     );

@@ -33,14 +33,36 @@ if (typeof window === "undefined" && !process.env.VITEST) {
   }
 }
 
+// cert() parses the private key eagerly, so a malformed FIREBASE_PRIVATE_KEY
+// (surrounding quotes or un-unescaped newlines — the classic Vercel env paste
+// mistake) throws right here at module load. Because almost every API route
+// imports this module, an unguarded throw takes the WHOLE server down: the
+// function crashes during initialization and Next serves a generic 500 HTML
+// page before any route handler runs. Catch it so the failure degrades to the
+// same graceful "server auth not configured" path as a missing key, and log
+// the real reason for the server logs.
 let app: App | undefined;
+let adminInitError: string | null = null;
 if (adminReady) {
-  app = getApps().length
-    ? getApp()
-    : initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-      });
+  try {
+    app = getApps().length
+      ? getApp()
+      : initializeApp({
+          credential: cert({ projectId, clientEmail, privateKey }),
+        });
+  } catch (err) {
+    adminInitError = err instanceof Error ? err.message : String(err);
+    console.error(
+      "[firebase-admin] Failed to initialize the Admin SDK — check that " +
+        "FIREBASE_PRIVATE_KEY is the unquoted PEM (literal \\n escapes are OK):",
+      err
+    );
+  }
 }
+
+// The Admin SDK initialization error message, if any — surfaced by API routes
+// so a bad service-account key is diagnosable from the client response.
+export const adminInitErrorMessage = adminInitError;
 
 export const adminDb: Firestore | null = app ? getFirestore(app) : null;
 
