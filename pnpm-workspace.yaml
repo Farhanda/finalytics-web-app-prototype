@@ -1,3 +1,11 @@
+# firebase-admin's transitive jwks-rsa@4 does `require('jose')` but declares
+# jose@^6, which is ESM-only — that combination throws ERR_REQUIRE_ESM at runtime
+# on Vercel's serverless Node (it can't require() an ES module). Pin jwks-rsa's
+# jose to v5, which ships a CommonJS build and exposes the same importJWK /
+# exportSPKI API jwks-rsa uses. Scoped to jwks-rsa so the MCP SDK keeps jose@6.
+overrides:
+  jwks-rsa>jose: ^5.9.6
+
 allowBuilds:
   '@firebase/util': false
   # esbuild ships its native binary via the @esbuild/<platform> optional package,
